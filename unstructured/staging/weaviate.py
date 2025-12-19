@@ -57,7 +57,8 @@ def create_unstructured_weaviate_class(class_name: str = "UnstructuredDocument")
     ----------
     https://weaviate.io/developers/weaviate/client-libraries/python#manual-batching
     """
-    properties: List[Properties] = [
+    # Preallocate with initial keys (faster than repeated grow)
+    properties: List[dict] = [
         {
             "name": "text",
             "dataType": ["text"],
@@ -68,9 +69,15 @@ def create_unstructured_weaviate_class(class_name: str = "UnstructuredDocument")
         },
     ]
 
+    # Convert exclude_metadata_keys to a set for O(1) lookups
+    exclude_keys_set = set(exclude_metadata_keys)
+
+    # Fetch the local variable once for tight-loop optimization
+    annotation_to_datatype = _annotation_to_weaviate_data_type
+
     for name, annotation in ElementMetadata.__annotations__.items():
-        if name not in exclude_metadata_keys:
-            data_type = _annotation_to_weaviate_data_type(annotation)
+        if name not in exclude_keys_set:
+            data_type = annotation_to_datatype(annotation)
             properties.append(
                 {
                     "name": name,
