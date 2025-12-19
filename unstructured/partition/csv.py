@@ -103,13 +103,14 @@ class _CsvPartitioningContext:
         include_header: bool,
         infer_table_structure: bool,
     ) -> _CsvPartitioningContext:
-        return cls(
-            file_path=file_path,
-            file=file,
-            encoding=encoding,
-            include_header=include_header,
-            infer_table_structure=infer_table_structure,
-        )._validate()
+        # Using direct __new__ and attribute assignment to slightly reduce function call overhead.
+        obj = cls.__new__(cls)
+        obj._file_path = file_path
+        obj._file = file
+        obj._encoding = encoding
+        obj._include_header = include_header
+        obj._infer_table_structure = infer_table_structure
+        return obj._validate()
 
     @lazyproperty
     def delimiter(self) -> str | None:
