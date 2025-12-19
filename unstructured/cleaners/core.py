@@ -7,6 +7,7 @@ import unicodedata
 from typing import Optional, Tuple
 
 import numpy as np
+from numba import njit
 
 from unstructured.file_utils.encoding import (
     format_encoding_str,
@@ -457,11 +458,37 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
 
     moved_indices = np.zeros(len(text))
 
-    distance, original_index, cleaned_index = 0, 0, 0
-    while cleaned_index < len(cleaned_text):
-        if text[original_index] == cleaned_text[cleaned_index] or (
-            bool(re.match("[\xa0\n]", text[original_index]))
-            and bool(re.match(" ", cleaned_text[cleaned_index]))
+    # Delegate the slow part to a fast njit numba helper
+    # Pass as str, and np.ndarray to nopython function
+    moved_indices = _compute_moved_indices_numba(text, cleaned_text, moved_indices)
+
+    return cleaned_text, moved_indices
+
+
+def index_adjustment_after_clean_extra_whitespace(index, moved_indices) -> int:
+    return int(index - moved_indices[index])
+
+
+@njit(cache=True)
+def _compute_moved_indices_numba(
+    text: str, cleaned_text: str, moved_indices: np.ndarray
+) -> np.ndarray:
+    distance = 0
+    original_index = 0
+    cleaned_index = 0
+    len(text)
+    cleaned_len = len(cleaned_text)
+
+    # Convert problematic chars used in regex to ord for direct comparison
+    xa0_ord = ord("\xa0")
+    newline_ord = ord("\n")
+    space_ord = ord(" ")
+
+    while cleaned_index < cleaned_len:
+        text_c = text[original_index]
+        cleaned_c = cleaned_text[cleaned_index]
+        if text_c == cleaned_c or (
+            (ord(text_c) == xa0_ord or ord(text_c) == newline_ord) and (ord(cleaned_c) == space_ord)
         ):
             moved_indices[cleaned_index] = distance
             original_index += 1
@@ -474,8 +501,4 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
 
     moved_indices[cleaned_index:] = distance
 
-    return cleaned_text, moved_indices
-
-
-def index_adjustment_after_clean_extra_whitespace(index, moved_indices) -> int:
-    return int(index - moved_indices[index])
+    return moved_indices
