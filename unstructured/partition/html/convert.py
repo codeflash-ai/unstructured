@@ -47,7 +47,10 @@ class ElementHtml(ABC):
         element_html.string = self.element.text
 
     def get_text_as_html(self) -> Union[Tag, None]:
-        element_html = BeautifulSoup(self.element.metadata.text_as_html or "", HTML_PARSER).find()
+        text_html = self.element.metadata.text_as_html
+        if not text_html:
+            return None
+        element_html = BeautifulSoup(text_html, HTML_PARSER).find()
         if not isinstance(element_html, Tag):
             return None
         return element_html
@@ -78,6 +81,12 @@ class ElementHtml(ABC):
 
     def set_children(self, children: list["ElementHtml"]) -> None:
         self.children = children
+
+    @property
+    def html_tag(self) -> str:
+        # Avoid class-level attribute lookup multiple times, and support easy subclassing/overriding
+        # Follows: _html_tag: str = "div" (as in the original ABC)
+        return getattr(self, "_html_tag", "div")
 
 
 class TitleElementHtml(ElementHtml):
