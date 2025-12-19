@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from numba import njit
 
 IOU_THRESHOLDS = torch.tensor(
     [0.5000, 0.5500, 0.6000, 0.6500, 0.7000, 0.7500, 0.8000, 0.8500, 0.9000, 0.9500]
@@ -303,8 +304,8 @@ class ObjectDetectionEvalProcessor:
         Returns:
             clipped_boxes:  Clipped bboxes in XYXY format of [..., 4] shape
         """
-        boxes[..., [0, 2]] = boxes[..., [0, 2]].clip(min=0, max=img_shape[1])
-        boxes[..., [1, 3]] = boxes[..., [1, 3]].clip(min=0, max=img_shape[0])
+        # Use Numba version for batch processing
+        _change_bbox_bounds_for_image_size_numba(boxes, img_shape)
         return boxes
 
     @staticmethod
@@ -484,7 +485,13 @@ class ObjectDetectionEvalProcessor:
         preds_to_ignore[preds_idx_to_use] = False
 
         if len(targets) > 0:  # or len(crowd_targets) > 0:
-            self._change_bbox_bounds_for_image_size(preds, (height, width))
+            if preds.device.type == "cpu":
+                preds_numpy = preds.detach().cpu().numpy()
+                # modify coords in-place
+                self._change_bbox_bounds_for_image_size(preds_numpy, (height, width))
+                preds[:, 0:4] = torch.from_numpy(preds_numpy[:, 0:4])
+            else:
+                self._change_bbox_bounds_for_image_size(preds, (height, width))
 
             preds_matched = self._compute_targets(
                 preds_box,
@@ -695,6 +702,87 @@ class ObjectDetectionEvalProcessor:
         ap = sampled_precision_points.mean(0)
 
         return ap, precision, recall
+
+    @staticmethod
+    @njit(cache=True, fastmath=True)
+    def _box_iou_numba(box1: np.ndarray, box2: np.ndarray) -> np.ndarray:
+        """
+        Return intersection-over-union (Jaccard index) of boxes.
+        Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+
+        Args:
+            box1: ndarray of shape [N, 4]
+            box2: ndarray of shape [M, 4]
+
+        Returns:
+            iou:    ndarray of shape [N, M]: the NxM matrix containing the pairwise IoU values
+                    for every element in boxes1 and boxes2
+        """
+        N = box1.shape[0]
+        M = box2.shape[0]
+        ious = np.zeros((N, M), dtype=np.float32)
+        for i in range(N):
+            box1_x1 = box1[i, 0]
+            box1_y1 = box1[i, 1]
+            box1_x2 = box1[i, 2]
+            box1_y2 = box1[i, 3]
+            area1 = max((box1_x2 - box1_x1), 0.0) * max((box1_y2 - box1_y1), 0.0)
+            for j in range(M):
+                box2_x1 = box2[j, 0]
+                box2_y1 = box2[j, 1]
+                box2_x2 = box2[j, 2]
+                box2_y2 = box2[j, 3]
+                area2 = max((box2_x2 - box2_x1), 0.0) * max((box2_y2 - box2_y1), 0.0)
+
+                inter_x1 = max(box1_x1, box2_x1)
+                inter_y1 = max(box1_y1, box2_y1)
+                inter_x2 = min(box1_x2, box2_x2)
+                inter_y2 = min(box1_y2, box2_y2)
+                inter_w = max(inter_x2 - inter_x1, 0.0)
+                inter_h = max(inter_y2 - inter_y1, 0.0)
+                inter_area = inter_w * inter_h
+
+                union = area1 + area2 - inter_area
+                if union > 0.0:
+                    ious[i, j] = inter_area / union
+                else:
+                    ious[i, j] = 0.0
+        return ious
+
+
+@njit(cache=True)
+def _change_bbox_bounds_for_image_size_numba(boxes: np.ndarray, img_shape: tuple) -> None:
+    """
+    Clips bboxes to image boundaries in-place.
+    Args:
+        bboxes:         Input bounding boxes in XYXY format of [..., 4] shape
+        img_shape:      Image shape (height, width).
+    Returns:
+        None (modifies the boxes in-place)
+    """
+    h, w = img_shape
+    for i in range(boxes.shape[0]):
+        # [x1, y1, x2, y2, ...]
+        if boxes.shape[1] < 4:
+            continue
+        # x1, x2
+        if boxes[i, 0] < 0:
+            boxes[i, 0] = 0
+        elif boxes[i, 0] > w:
+            boxes[i, 0] = w
+        if boxes[i, 2] < 0:
+            boxes[i, 2] = 0
+        elif boxes[i, 2] > w:
+            boxes[i, 2] = w
+        # y1, y2
+        if boxes[i, 1] < 0:
+            boxes[i, 1] = 0
+        elif boxes[i, 1] > h:
+            boxes[i, 1] = h
+        if boxes[i, 3] < 0:
+            boxes[i, 3] = 0
+        elif boxes[i, 3] > h:
+            boxes[i, 3] = h
 
 
 if __name__ == "__main__":
