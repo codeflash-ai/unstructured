@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, Optional, Tuple
 
 from rapidfuzz.distance import Levenshtein
@@ -79,17 +80,14 @@ def bag_of_words(text: str) -> Dict[str, int]:
 
     Removes sentence punctuation, but not punctuation within a word (ex. apostrophes).
     """
-    bow: Dict[str, int] = {}
+    bow: Dict[str, int] = defaultdict(int)
     incorrect_word: str = ""
     words = clean_bullets(remove_sentence_punctuation(text.lower(), ["-", "'"])).split()
 
     i = 0
     while i < len(words):
         if len(words[i]) > 1:
-            if words[i] in bow:
-                bow[words[i]] += 1
-            else:
-                bow[words[i]] = 1
+            bow[words[i]] += 1
             i += 1
         else:
             j = i
@@ -100,12 +98,9 @@ def bag_of_words(text: str) -> Dict[str, int]:
                 j += 1
 
             if len(incorrect_word) == 1 and words[i].isalnum():
-                if incorrect_word in bow:
-                    bow[incorrect_word] += 1
-                else:
-                    bow[incorrect_word] = 1
+                bow[incorrect_word] += 1
             i = j
-    return bow
+    return dict(bow)
 
 
 def calculate_percent_missing_text(

@@ -21,6 +21,8 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+_tbl_cache = {}
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -315,10 +317,7 @@ def remove_punctuation(s: str) -> str:
 
 
 def remove_sentence_punctuation(s: str, exclude_punctuation: Optional[list]) -> str:
-    tbl_new = tbl.copy()
-    if exclude_punctuation:
-        for punct in exclude_punctuation:
-            del tbl_new[ord(punct)]
+    tbl_new = _make_table(exclude_punctuation)
     s = s.translate(tbl_new)
     return s
 
@@ -479,3 +478,16 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
 
 def index_adjustment_after_clean_extra_whitespace(index, moved_indices) -> int:
     return int(index - moved_indices[index])
+
+
+def _make_table(exclude_punctuation: Optional[list]) -> dict:
+    key = tuple(exclude_punctuation) if exclude_punctuation else ()
+    if key in _tbl_cache:
+        return _tbl_cache[key]
+    table = tbl.copy()
+    if exclude_punctuation:
+        for punct in exclude_punctuation:
+            if ord(punct) in table:
+                del table[ord(punct)]
+    _tbl_cache[key] = table
+    return table
