@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+from numba import njit
 from unstructured_inference.constants import Source
 from unstructured_inference.inference.elements import TextRegion, TextRegions
 from unstructured_inference.inference.layoutelement import (
@@ -96,13 +97,28 @@ def merge_text_regions(regions: TextRegions) -> TextRegion:
     if not regions:
         raise ValueError("The text regions to be merged must be provided.")
 
-    min_x1 = regions.x1.min().astype(float)
-    min_y1 = regions.y1.min().astype(float)
-    max_x2 = regions.x2.max().astype(float)
-    max_y2 = regions.y2.max().astype(float)
+    # Use numba-optimized function for min/max and avoid repeated attribute lookups
+    min_x1, _ = _min_max_float(regions.x1)
+    min_y1, _ = _min_max_float(regions.y1)
+    _, max_x2 = _min_max_float(regions.x2)
+    _, max_y2 = _min_max_float(regions.y2)
 
     merged_text = " ".join([text for text in regions.texts if text])
     # assumption is the regions has the same source
     source = regions.sources[0]
 
     return TextRegion.from_coords(min_x1, min_y1, max_x2, max_y2, merged_text, source)
+
+
+@njit(cache=True, fastmath=True)
+def _min_max_float(arr: np.ndarray):
+    # Compute min and max as float in a single pass
+    min_v = arr[0]
+    max_v = arr[0]
+    for i in range(1, arr.shape[0]):
+        v = arr[i]
+        if v < min_v:
+            min_v = v
+        if v > max_v:
+            max_v = v
+    return float(min_v), float(max_v)
