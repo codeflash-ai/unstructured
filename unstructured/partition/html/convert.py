@@ -79,6 +79,12 @@ class ElementHtml(ABC):
     def set_children(self, children: list["ElementHtml"]) -> None:
         self.children = children
 
+    # Add html_tag property for direct access with caching
+    @property
+    def html_tag(self) -> str:
+        # Prefer attribute lookup only, as required by code and comment guidelines
+        return getattr(self, "_html_tag", "div")
+
 
 class TitleElementHtml(ElementHtml):
     _html_tag = "h%d"
@@ -126,7 +132,7 @@ class UnorderedListElementHtml(ElementHtml):
 
     def _get_children_html(self, soup: BeautifulSoup, element_html: Tag, **kwargs: Any) -> Tag:
         for child in self.children:
-            child_html = child.get_html_element(**kwargs)
+            child_html = child.get_html_element(_soup=soup, **kwargs)
             element_html.append(child_html)
         return element_html
 
