@@ -81,12 +81,11 @@ def _inferred_is_elementtype(
         for idx, class_name in inferred_layout.element_class_id_map.items()
         if class_name in etypes
     ]
-    inferred_is_etypes = np.zeros((len(inferred_layout),)).astype(bool)
-    for idx in inferred_text_idx:
-        inferred_is_etypes = np.logical_or(
-            inferred_is_etypes, inferred_layout.element_class_ids == idx
-        )
-    return inferred_is_etypes
+    if len(inferred_text_idx) == 0:
+        return np.zeros((len(inferred_layout),), dtype=bool)
+
+    # Use numpy's isin for vectorized comparison instead of loop
+    return np.isin(inferred_layout.element_class_ids, inferred_text_idx)
 
 
 def _inferred_is_text(inferred_layout: LayoutElements) -> np.ndarry:
