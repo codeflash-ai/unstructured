@@ -1,9 +1,10 @@
 import logging
 from abc import ABC
 from collections import defaultdict
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from bs4 import BeautifulSoup, Tag
+from numba import njit
 
 from unstructured.documents.elements import Element, ElementType
 
@@ -276,7 +277,11 @@ def _elements_to_html_tags_by_page(
 ) -> list[Tag]:
     soup = BeautifulSoup("", HTML_PARSER)
     pages_tags: list[Tag] = []
-    grouped_elements = group_elements_by_page(elements)
+    # Use optimized grouping if possible (assume ElementType and Element have the same properties as described)
+    try:
+        grouped_elements = _fast_group_elements_by_page(elements)
+    except Exception:
+        grouped_elements = group_elements_by_page(elements)
     for page, g_elements in enumerate(grouped_elements, start=1):
         page_html = soup.new_tag(name="div", attrs={"data-page_number": page})
         elements_html = _elements_to_html_tags(g_elements, exclude_binary_image_data)
@@ -318,3 +323,41 @@ def elements_to_html(
     for element_html in elements_html:
         soup.body.append(element_html)
     return soup.prettify()
+
+
+@njit(cache=True)
+def _group_elements_by_page_indexes(page_numbers_arr):
+    # page_numbers_arr: 1D numpy array of int32 (None means -1)
+    # Returns: List of arrays of integer indexes grouped by page number (in ascending order by page number)
+    unique_pages = set()
+    for i in range(page_numbers_arr.shape[0]):
+        pgnum = page_numbers_arr[i]
+        if pgnum != -1:
+            unique_pages.add(pgnum)
+    page_list = sorted(list(unique_pages))
+    # Dict: page_num -> List of indexes
+    out = []
+    for page in page_list:
+        idxs = []
+        for i in range(page_numbers_arr.shape[0]):
+            if page_numbers_arr[i] == page:
+                idxs.append(i)
+        out.append(idxs)
+    return page_list, out
+
+
+def _fast_group_elements_by_page(elements: list[Element]) -> List[List[Element]]:
+    # Uses numpy and numba to group element indexes by page number, avoiding costly Python overhead
+    import numpy as np
+
+    page_numbers = []
+    for e in elements:
+        pn = getattr(e.metadata, "page_number", None)
+        page_numbers.append(pn if pn is not None else -1)
+    page_numbers_arr = np.array(page_numbers, dtype=np.int64)
+    # Remove elements where page_number is -1 (those skipped in reference)
+    page_list, idx_groups = _group_elements_by_page_indexes(page_numbers_arr)
+    grouped = []
+    for idxs in idx_groups:
+        grouped.append([elements[i] for i in idxs])
+    return grouped
