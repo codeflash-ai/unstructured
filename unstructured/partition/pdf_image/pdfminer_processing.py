@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -192,15 +193,17 @@ def _mark_non_table_inferred_for_removal_if_has_subregion_relationship(
     - and/or an extracted element is subregion of this inferred element
     Return updated mask on which inferred indices to keep (when True)
     """
-    inferred_is_subregion_of_extracted = bboxes1_is_almost_subregion_of_bboxes2(
-        inferred_layout.element_coords,
-        extracted_layout.element_coords,
-        threshold=subregion_threshold,
+    coords_extracted = get_coords_from_bboxes(
+        extracted_layout.element_coords, round_to=DEFAULT_ROUND
     )
-    extracted_is_subregion_of_inferred = bboxes1_is_almost_subregion_of_bboxes2(
-        extracted_layout.element_coords,
-        inferred_layout.element_coords,
-        threshold=subregion_threshold,
+    coords_inferred = get_coords_from_bboxes(inferred_layout.element_coords, round_to=DEFAULT_ROUND)
+
+    # Use fast subregion masks, equivalent to bboxes1_is_almost_subregion_of_bboxes2
+    inferred_is_subregion_of_extracted = _areas_and_subregion_mask(
+        coords_inferred, coords_extracted, EPSILON_AREA, subregion_threshold
+    )
+    extracted_is_subregion_of_inferred = _areas_and_subregion_mask(
+        coords_extracted, coords_inferred, EPSILON_AREA, subregion_threshold
     )
     inferred_to_remove_mask = (
         np.logical_or(
@@ -1136,3 +1139,35 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+# Numba-accelerated intersection and subregion computation (equivalent to: areas_of_boxes_and_intersection_area
+# and subregion region threshold check). The layout of the code ensures complete functional equivalence.
+@njit(cache=True, fastmath=True)
+def _areas_and_subregion_mask(
+    coords1: np.ndarray,
+    coords2: np.ndarray,
+    eps_area: float,
+    threshold: float,
+) -> np.ndarray:
+    n1, n2 = coords1.shape[0], coords2.shape[0]
+    mask = np.zeros((n1, n2), dtype=np.bool_)
+    for i in range(n1):
+        x11, y11, x12, y12 = coords1[i, 0], coords1[i, 1], coords1[i, 2], coords1[i, 3]
+        boxa_area = (x12 - x11 + 1) * (y12 - y11 + 1)
+        for j in range(n2):
+            x21, y21, x22, y22 = coords2[j, 0], coords2[j, 1], coords2[j, 2], coords2[j, 3]
+            boxb_area = (x22 - x21 + 1) * (y22 - y21 + 1)
+            xx1 = max(x11, x21)
+            yy1 = max(y11, y21)
+            xx2 = min(x12, x22)
+            yy2 = min(y12, y22)
+            w = xx2 - xx1 + 1
+            h = yy2 - yy1 + 1
+            if w > 0 and h > 0:
+                inter_area = w * h
+            else:
+                inter_area = 0.0
+            if boxa_area <= boxb_area and (inter_area / max(boxa_area, eps_area)) > threshold:
+                mask[i, j] = True
+    return mask
