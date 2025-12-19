@@ -402,7 +402,20 @@ def contains_emoji(s: str) -> bool:
     Returns:
     - bool: True if the string contains any emoji, False otherwise.
     """
+    # Fast path for common cases - check for likely emoji ranges first
+    for char in s:
+        cp = ord(char)
+        # Check most common emoji ranges first for early exit
+        if (
+            0x1F600 <= cp <= 0x1F64F  # Emoticons
+            or 0x1F300 <= cp <= 0x1F5FF  # Misc Symbols and Pictographs
+            or 0x1F680 <= cp <= 0x1F6FF  # Transport & Map Symbols
+            or 0x2600 <= cp <= 0x26FF  # Misc symbols
+            or 0x2700 <= cp <= 0x27BF
+        ):  # Dingbats
+            return True
 
+    # Fallback to original method for comprehensive detection
     return bool(emoji.emoji_count(s))
 
 
