@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -76,17 +77,18 @@ def _minimum_containing_coords(*regions: TextRegions) -> np.ndarray:
 def _inferred_is_elementtype(
     inferred_layout: LayoutElements, etypes: Iterable[ElementType]
 ) -> np.ndarry:
+    # Build list of class indices for the expected etypes
     inferred_text_idx = [
         idx
         for idx, class_name in inferred_layout.element_class_id_map.items()
         if class_name in etypes
     ]
-    inferred_is_etypes = np.zeros((len(inferred_layout),)).astype(bool)
-    for idx in inferred_text_idx:
-        inferred_is_etypes = np.logical_or(
-            inferred_is_etypes, inferred_layout.element_class_ids == idx
-        )
-    return inferred_is_etypes
+    element_class_ids = inferred_layout.element_class_ids
+    if not inferred_text_idx:
+        return np.zeros((len(inferred_layout),), dtype=bool)
+    # Dispatch to optimized numba function
+    idx_array = np.array(inferred_text_idx, dtype=element_class_ids.dtype)
+    return _numba_is_etypes(element_class_ids, idx_array)
 
 
 def _inferred_is_text(inferred_layout: LayoutElements) -> np.ndarry:
@@ -1136,3 +1138,21 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+@njit(cache=True)
+def _numba_logical_or(arr1: np.ndarray, arr2: np.ndarray) -> np.ndarray:
+    # In-place logical or between two boolean arrays of the same length
+    result = np.empty_like(arr1)
+    for i in range(arr1.size):
+        result[i] = arr1[i] or arr2[i]
+    return result
+
+
+@njit(cache=True)
+def _numba_is_etypes(element_class_ids: np.ndarray, selected_indices: np.ndarray) -> np.ndarray:
+    inferred_is_etypes = np.zeros(element_class_ids.shape, dtype=np.bool_)
+    for idx in selected_indices:
+        mask = element_class_ids == idx
+        inferred_is_etypes = _numba_logical_or(inferred_is_etypes, mask)
+    return inferred_is_etypes
