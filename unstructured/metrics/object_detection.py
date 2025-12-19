@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import numba as nb
 import numpy as np
 import torch
 
@@ -484,7 +485,16 @@ class ObjectDetectionEvalProcessor:
         preds_to_ignore[preds_idx_to_use] = False
 
         if len(targets) > 0:  # or len(crowd_targets) > 0:
-            self._change_bbox_bounds_for_image_size(preds, (height, width))
+            # The next line will mutate ONLY numpy array for box bounds (OK for intermediate step)
+            if preds.is_cuda:
+                # torch tensor on CUDA; copy to CPU for numba, then move back
+                preds_np = preds[:, 0:4].detach().cpu().numpy()
+                _change_bbox_bounds_for_image_size_numba(preds_np, height, width)
+                preds[:, 0:4] = torch.from_numpy(preds_np).to(preds.device)
+            else:
+                # torch tensor on CPU, get underlying numpy array view for box updates in-place
+                preds_np = preds[:, 0:4].numpy()
+                _change_bbox_bounds_for_image_size_numba(preds_np, height, width)
 
             preds_matched = self._compute_targets(
                 preds_box,
@@ -695,6 +705,19 @@ class ObjectDetectionEvalProcessor:
         ap = sampled_precision_points.mean(0)
 
         return ap, precision, recall
+
+
+# Numba JIT-accelerated numpy bounding box bounds adjustment
+@nb.njit(cache=True, nogil=True, fastmath=True)
+def _change_bbox_bounds_for_image_size_numba(boxes: np.ndarray, height: int, width: int):
+    n = boxes.shape[0]
+    for i in range(n):
+        # clip x1 and x2
+        boxes[i, 0] = min(max(boxes[i, 0], 0), width)
+        boxes[i, 2] = min(max(boxes[i, 2], 0), width)
+        # clip y1 and y2
+        boxes[i, 1] = min(max(boxes[i, 1], 0), height)
+        boxes[i, 3] = min(max(boxes[i, 3], 0), height)
 
 
 if __name__ == "__main__":
