@@ -315,10 +315,11 @@ def remove_punctuation(s: str) -> str:
 
 
 def remove_sentence_punctuation(s: str, exclude_punctuation: Optional[list]) -> str:
+    if not exclude_punctuation:
+        return s.translate(tbl)
     tbl_new = tbl.copy()
-    if exclude_punctuation:
-        for punct in exclude_punctuation:
-            del tbl_new[ord(punct)]
+    for punct in exclude_punctuation:
+        del tbl_new[ord(punct)]
     s = s.translate(tbl_new)
     return s
 
