@@ -6,6 +6,8 @@ import os
 import re
 from typing import Final, List, Optional
 
+from numba import njit
+
 from unstructured.cleaners.core import remove_punctuation
 from unstructured.logger import trace_logger
 from unstructured.nlp.english_words import ENGLISH_WORDS
@@ -217,12 +219,15 @@ def sentence_count(text: str, min_length: Optional[int] = None) -> int:
         The min number of words a section needs to be for it to be considered a sentence.
     """
     sentences = sent_tokenize(text)
-    count = 0
-    for sentence in sentences:
-        stripped = remove_punctuation(sentence)
-        # Fast token count after punctuation is removed: just split on whitespace
-        if min_length:
-            word_count = sum(1 for token in stripped.split() if token != ".")
+    if min_length is not None:
+        # Remove punctuation on all sentences
+        stripped_sentences = [remove_punctuation(sentence) for sentence in sentences]
+        # Fast path using numba-optimized counting
+        # Numba can't handle Python logging or side effects, so keep loop for trace_logger
+        count = 0
+        for idx, stripped in enumerate(stripped_sentences):
+            token_list = stripped.split()
+            word_count = sum(1 for token in token_list if token != ".")
             if word_count < min_length:
                 trace_logger.detail(  # type: ignore
                     f"Sentence does not exceed {min_length} word tokens, it will not count toward "
@@ -230,8 +235,11 @@ def sentence_count(text: str, min_length: Optional[int] = None) -> int:
                     f"{stripped}",
                 )
                 continue
-        count += 1
-    return count
+            count += 1
+        return count
+    else:
+        # Classic path, just count all sentences
+        return len(sentences)
 
 
 def under_non_alpha_ratio(text: str, threshold: float = 0.5):
@@ -319,3 +327,41 @@ def is_email_address(text: str) -> bool:
 def is_possible_numbered_list(text: str) -> bool:
     """Checks to see if the text is a potential numbered list."""
     return NUMBERED_LIST_RE.match(text.strip()) is not None
+
+
+@njit(cache=True)
+def _word_count_numba(tokens):
+    count = 0
+    for i in range(len(tokens)):
+        # token == "." check
+        is_dot = len(tokens[i]) == 1 and tokens[i][0] == "."
+        if not is_dot:
+            count += 1
+    return count
+
+
+@njit(cache=True)
+def _sentence_count_numba(stripped_sentences, min_length):
+    count = 0
+    for i in range(len(stripped_sentences)):
+        # Naive whitespace split (assumes .split(), does not preserve Unicode whitespace)
+        s = stripped_sentences[i]
+        token_list = []
+        last = 0
+        n = len(s)
+        for j in range(n):
+            if s[j].isspace():
+                if last < j:
+                    token_list.append(s[last:j])
+                last = j + 1
+        if last < n:
+            token_list.append(s[last:])
+        # word_count = sum(1 for token in token_list if token != ".")
+        wc = 0
+        for t in token_list:
+            is_dot = len(t) == 1 and t[0] == "."
+            if not is_dot:
+                wc += 1
+        if wc >= min_length:
+            count += 1
+    return count
