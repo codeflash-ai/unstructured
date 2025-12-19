@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -625,12 +626,13 @@ def boxes_iou(
     coords1 = get_coords_from_bboxes(bboxes1, round_to=round_to)
     coords2 = get_coords_from_bboxes(bboxes2, round_to=round_to)
 
-    inter_area, boxa_area, boxb_area = areas_of_boxes_and_intersection_area(
-        coords1, coords2, round_to=round_to
-    )
-    denom = np.maximum(EPSILON_AREA, boxa_area + boxb_area.T - inter_area)
-    # Instead of (x/y) > t, use x > t*y for memory & speed with same result
-    return inter_area > (threshold * denom)
+    # Convert to float64 for numba compatibility if needed
+    if coords1.dtype != np.float64:
+        coords1 = coords1.astype(np.float64)
+    if coords2.dtype != np.float64:
+        coords2 = coords2.astype(np.float64)
+
+    return _boxes_iou_numba(coords1, coords2, threshold, round_to, EPSILON_AREA)
 
 
 @requires_dependencies("unstructured_inference")
@@ -1136,3 +1138,53 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+@njit(cache=True, fastmath=True)
+def _areas_of_boxes_and_intersection_area_numba(
+    coords1: np.ndarray, coords2: np.ndarray, round_to: int
+):
+    nA, _ = coords1.shape
+    nB, _ = coords2.shape
+
+    inter_area = np.empty((nA, nB), dtype=np.float64)
+    boxa_area = np.empty((nA, 1), dtype=np.float64)
+    boxb_area = np.empty((nB, 1), dtype=np.float64)
+
+    for i in range(nA):
+        x11, y11, x12, y12 = coords1[i, 0], coords1[i, 1], coords1[i, 2], coords1[i, 3]
+        boxa_area[i, 0] = round((x12 - x11 + 1) * (y12 - y11 + 1), round_to)
+        for j in range(nB):
+            x21, y21, x22, y22 = coords2[j, 0], coords2[j, 1], coords2[j, 2], coords2[j, 3]
+            if i == 0:
+                # only fill boxb_area first row pass (save time)
+                boxb_area[j, 0] = round((x22 - x21 + 1) * (y22 - y21 + 1), round_to)
+            xa1 = max(x11, x21)
+            ya1 = max(y11, y21)
+            xa2 = min(x12, x22)
+            ya2 = min(y12, y22)
+            w = max(xa2 - xa1 + 1, 0)
+            h = max(ya2 - ya1 + 1, 0)
+            inter_area[i, j] = round(w * h, round_to)
+
+    return inter_area, boxa_area, boxb_area
+
+
+@njit(cache=True, fastmath=True)
+def _boxes_iou_numba(
+    coords1: np.ndarray,
+    coords2: np.ndarray,
+    threshold: float,
+    round_to: int,
+    epsilon_area: float,
+) -> np.ndarray:
+    inter_area, boxa_area, boxb_area = _areas_of_boxes_and_intersection_area_numba(
+        coords1, coords2, round_to
+    )
+    nA, nB = inter_area.shape
+    result = np.empty((nA, nB), dtype=np.bool_)
+    for i in range(nA):
+        for j in range(nB):
+            denom = max(epsilon_area, boxa_area[i, 0] + boxb_area[j, 0] - inter_area[i, j])
+            result[i, j] = inter_area[i, j] > (threshold * denom)
+    return result
