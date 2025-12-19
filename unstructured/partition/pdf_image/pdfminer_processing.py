@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -580,16 +581,7 @@ def areas_of_boxes_and_intersection_area(
     coords1: np.ndarray, coords2: np.ndarray, round_to: int = DEFAULT_ROUND
 ):
     """compute intersection area and own areas for two groups of bounding boxes"""
-    x11, y11, x12, y12 = np.split(coords1, 4, axis=1)
-    x21, y21, x22, y22 = np.split(coords2, 4, axis=1)
-
-    inter_area = np.maximum(
-        (np.minimum(x12, np.transpose(x22)) - np.maximum(x11, np.transpose(x21)) + 1), 0
-    ) * np.maximum((np.minimum(y12, np.transpose(y22)) - np.maximum(y11, np.transpose(y21)) + 1), 0)
-    boxa_area = (x12 - x11 + 1) * (y12 - y11 + 1)
-    boxb_area = (x22 - x21 + 1) * (y22 - y21 + 1)
-
-    return inter_area.round(round_to), boxa_area.round(round_to), boxb_area.round(round_to)
+    return _areas_of_boxes_and_intersection_area_impl(coords1, coords2, round_to)
 
 
 def bboxes1_is_almost_subregion_of_bboxes2(
@@ -603,10 +595,7 @@ def bboxes1_is_almost_subregion_of_bboxes2(
     inter_area, boxa_area, boxb_area = areas_of_boxes_and_intersection_area(
         coords1, coords2, round_to=round_to
     )
-
-    return (inter_area / np.maximum(boxa_area, EPSILON_AREA) > threshold) & (
-        boxa_area <= boxb_area.T
-    )
+    return _bboxes1_is_almost_subregion_of_bboxes2_impl(inter_area, boxa_area, boxb_area, threshold)
 
 
 def boxes_self_iou(bboxes, threshold: float = 0.5, round_to: int = DEFAULT_ROUND) -> np.ndarray:
@@ -1136,3 +1125,48 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+@njit(fastmath=True, cache=True)
+def _areas_of_boxes_and_intersection_area_impl(
+    coords1: np.ndarray, coords2: np.ndarray, round_to: int
+):
+    n1 = coords1.shape[0]
+    n2 = coords2.shape[0]
+    inter_area = np.zeros((n1, n2), dtype=np.float64)
+    boxa_area = np.zeros((n1, 1), dtype=np.float64)
+    boxb_area = np.zeros((1, n2), dtype=np.float64)
+
+    for i in range(n1):
+        x11, y11, x12, y12 = coords1[i, 0], coords1[i, 1], coords1[i, 2], coords1[i, 3]
+        boxa_area[i, 0] = round((x12 - x11 + 1) * (y12 - y11 + 1), round_to)
+        for j in range(n2):
+            x21, y21, x22, y22 = coords2[j, 0], coords2[j, 1], coords2[j, 2], coords2[j, 3]
+            xx1 = max(x11, x21)
+            yy1 = max(y11, y21)
+            xx2 = min(x12, x22)
+            yy2 = min(y12, y22)
+            w = max(xx2 - xx1 + 1, 0)
+            h = max(yy2 - yy1 + 1, 0)
+            inter = w * h
+            inter_area[i, j] = round(inter, round_to)
+            if i == 0:
+                # Only need to fill once per box in coords2
+                boxb_area[0, j] = round((x22 - x21 + 1) * (y22 - y21 + 1), round_to)
+
+    return inter_area, boxa_area, boxb_area
+
+
+@njit(fastmath=True, cache=True)
+def _bboxes1_is_almost_subregion_of_bboxes2_impl(
+    inter_area: np.ndarray, boxa_area: np.ndarray, boxb_area: np.ndarray, threshold: float
+) -> np.ndarray:
+    # Shape: inter_area (n1, n2), boxa_area (n1, 1), boxb_area (1, n2)
+    n1, n2 = inter_area.shape
+    arr = np.zeros((n1, n2), dtype=np.bool_)
+    for i in range(n1):
+        for j in range(n2):
+            ratio = inter_area[i, j] / max(boxa_area[i, 0], EPSILON_AREA)
+            if ratio > threshold and boxa_area[i, 0] <= boxb_area[0, j]:
+                arr[i, j] = True
+    return arr
