@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import html
 from collections import OrderedDict
 from itertools import chain
@@ -161,12 +162,8 @@ def can_unstructured_elements_be_merged(
     if current_element.metadata.category_depth != next_element.metadata.category_depth:
         return False
 
-    current_html_tags = BeautifulSoup(
-        current_element.metadata.text_as_html, "html.parser"
-    ).find_all(recursive=False)
-    next_html_tags = BeautifulSoup(next_element.metadata.text_as_html, "html.parser").find_all(
-        recursive=False
-    )
+    current_html_tags = _cached_html_tags(current_element.metadata.text_as_html)
+    next_html_tags = _cached_html_tags(next_element.metadata.text_as_html)
 
     ontology_elements = [
         parse_html_to_ontology_element(html_tag)
@@ -478,3 +475,8 @@ def get_escaped_attributes(soup: Tag) -> dict[str, str | list[str]]:
                 escaped_value = html.escape(value)
         escaped_attrs[escaped_key] = escaped_value
     return escaped_attrs
+
+
+@functools.lru_cache(maxsize=4096)
+def _cached_html_tags(text_as_html: str):
+    return BeautifulSoup(text_as_html, "html.parser").find_all(recursive=False)
