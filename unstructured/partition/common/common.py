@@ -410,20 +410,20 @@ def get_page_image_metadata(page: PageLayout) -> dict[str, Any]:
     """Retrieve image metadata and coordinate system from a page."""
 
     image = getattr(page, "image", None)
-    image_metadata = getattr(page, "image_metadata", None)
-
     if image:
         image_format = image.format
         image_width = image.width
         image_height = image.height
-    elif image_metadata:
-        image_format = image_metadata.get("format")
-        image_width = image_metadata.get("width")
-        image_height = image_metadata.get("height")
     else:
-        image_format = None
-        image_width = None
-        image_height = None
+        image_metadata = getattr(page, "image_metadata", None)
+        if image_metadata:
+            image_format = image_metadata.get("format")
+            image_width = image_metadata.get("width")
+            image_height = image_metadata.get("height")
+        else:
+            image_format = None
+            image_width = None
+            image_height = None
 
     return {
         "format": image_format,
