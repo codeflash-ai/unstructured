@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from numba import njit
 
 IOU_THRESHOLDS = torch.tensor(
     [0.5000, 0.5500, 0.6000, 0.6500, 0.7000, 0.7500, 0.8000, 0.8500, 0.9000, 0.9500]
@@ -322,21 +323,11 @@ class ObjectDetectionEvalProcessor:
             iou:    Tensor of shape [N, M]: the NxM matrix containing the pairwise IoU values
                     for every element in boxes1 and boxes2
         """
-
-        def box_area(box):
-            # box = 4xn
-            return (box[2] - box[0]) * (box[3] - box[1])
-
-        area1 = box_area(box1.T)
-        area2 = box_area(box2.T)
-
-        # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
-        inter = (
-            (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2]))
-            .clamp(0)
-            .prod(2)
-        )
-        return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
+        # Use numba-accelerated numpy for speed.
+        box1_np = box1.detach().cpu().numpy()
+        box2_np = box2.detach().cpu().numpy()
+        iou_np = ObjectDetectionEvalProcessor._box_iou_numba(box1_np, box2_np)
+        return torch.from_numpy(iou_np).to(box1.device)
 
     def _compute_targets(
         self,
@@ -695,6 +686,45 @@ class ObjectDetectionEvalProcessor:
         ap = sampled_precision_points.mean(0)
 
         return ap, precision, recall
+
+    @staticmethod
+    @njit(fastmath=True, cache=True)
+    def _box_iou_numba(box1: np.ndarray, box2: np.ndarray) -> np.ndarray:
+        """
+        NumPy/Numba port of intersection-over-union (Jaccard index) of boxes.
+        Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+
+        Args:
+            box1: ndarray of shape [N, 4]
+            box2: ndarray of shape [M, 4]
+
+        Returns:
+            iou:    ndarray of shape [N, M]: the NxM matrix containing the pairwise IoU values
+                    for every element in boxes1 and boxes2
+        """
+        N = box1.shape[0]
+        M = box2.shape[0]
+        iou = np.zeros((N, M), dtype=np.float32)
+
+        # Compute areas
+        area1 = (box1[:, 2] - box1[:, 0]) * (box1[:, 3] - box1[:, 1])
+        area2 = (box2[:, 2] - box2[:, 0]) * (box2[:, 3] - box2[:, 1])
+
+        for i in range(N):
+            for j in range(M):
+                xx1 = max(box1[i, 0], box2[j, 0])
+                yy1 = max(box1[i, 1], box2[j, 1])
+                xx2 = min(box1[i, 2], box2[j, 2])
+                yy2 = min(box1[i, 3], box2[j, 3])
+                w = max(0.0, xx2 - xx1)
+                h = max(0.0, yy2 - yy1)
+                inter = w * h
+                union = area1[i] + area2[j] - inter
+                if union > 0:
+                    iou[i, j] = inter / union
+                else:
+                    iou[i, j] = 0.0
+        return iou
 
 
 if __name__ == "__main__":
