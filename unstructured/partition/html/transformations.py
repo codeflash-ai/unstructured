@@ -301,9 +301,9 @@ def parse_html_to_ontology(html_code: str) -> ontology.OntologyElement:
 def remove_empty_divs_from_html_content(html_content: str) -> str:
     soup = BeautifulSoup(html_content, "html.parser")
     divs = soup.find_all("div")
-    for div in reversed(divs):
-        if not div.attrs:
-            div.unwrap()
+    divs_to_unwrap = [div for div in divs if not div.attrs]
+    for div in reversed(divs_to_unwrap):
+        div.unwrap()
     return str(soup)
 
 
