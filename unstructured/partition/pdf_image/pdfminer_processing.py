@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -62,15 +63,7 @@ def _minimum_containing_coords(*regions: TextRegions) -> np.ndarray:
     y1s = np.array([region.y1 for region in regions])
     x2s = np.array([region.x2 for region in regions])
     y2s = np.array([region.y2 for region in regions])
-    # Use np.min/max reduction rather than create matrix then operate.
-    return np.column_stack(
-        (
-            np.min(x1s, axis=0),
-            np.min(y1s, axis=0),
-            np.max(x2s, axis=0),
-            np.max(y2s, axis=0),
-        )
-    )
+    return _minimum_containing_coords_numba(x1s, y1s, x2s, y2s)
 
 
 def _inferred_is_elementtype(
@@ -1136,3 +1129,21 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+@njit(cache=True)
+def _minimum_containing_coords_numba(
+    x1s: np.ndarray, y1s: np.ndarray, x2s: np.ndarray, y2s: np.ndarray
+) -> np.ndarray:
+    # Compute the min/max in nopython mode, returns 2D shape to match np.column_stack
+    min_x1 = np.min(x1s)
+    min_y1 = np.min(y1s)
+    max_x2 = np.max(x2s)
+    max_y2 = np.max(y2s)
+    # Ensure result shape is (1, 4)
+    result = np.empty((1, 4), dtype=x1s.dtype)
+    result[0, 0] = min_x1
+    result[0, 1] = min_y1
+    result[0, 2] = max_x2
+    result[0, 3] = max_y2
+    return result
