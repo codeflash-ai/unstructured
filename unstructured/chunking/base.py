@@ -311,8 +311,10 @@ class PreChunker:
         # -- all detectors need to be called to update state and avoid double counting
         # -- boundaries that happen to coincide, like Table and new section on same element.
         # -- Using `any()` would short-circuit on first True.
-        semantic_boundaries = [pred(element) for pred in self._boundary_predicates]
-        return any(semantic_boundaries)
+        for pred in self._boundary_predicates:
+            if pred(element):
+                return True
+        return False
 
 
 class PreChunkBuilder:
