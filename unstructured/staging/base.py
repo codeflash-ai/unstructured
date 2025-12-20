@@ -530,51 +530,43 @@ def convert_to_coco(
     categories = sorted(set(TYPE_TO_TEXT_ELEMENT_MAP.keys()))
     categories = [{"id": i + 1, "name": cat} for i, cat in enumerate(categories)]
     coco_dataset["categories"] = categories
+
+    # Index category name to id for faster lookup
+    category_name_to_id = {cat["name"]: cat["id"] for cat in categories}
+
     # Handle Annotations
-    annotations = [
-        {
-            "id": el["element_id"],
-            "category_id": [x["id"] for x in categories if x["name"] == el["type"]][0],
-            "bbox": (
-                [
-                    float(el["metadata"].get("coordinates")["points"][0][0]),
-                    float(el["metadata"].get("coordinates")["points"][0][1]),
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][0]
-                            - el["metadata"].get("coordinates")["points"][2][0]
-                        )
-                    ),
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][1]
-                            - el["metadata"].get("coordinates")["points"][1][1]
-                        )
-                    ),
-                ]
-                if el["metadata"].get("coordinates")
-                else []
-            ),
-            "area": (
-                (
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][0]
-                            - el["metadata"].get("coordinates")["points"][2][0]
-                        )
-                    )
-                    * float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][1]
-                            - el["metadata"].get("coordinates")["points"][1][1]
-                        )
-                    )
-                )
-                if el["metadata"].get("coordinates")
-                else None
-            ),
-        }
-        for el in element_dicts
-    ]
+    annotations = []
+    for el in element_dicts:
+        # Maintain original behavior: raise IndexError for unknown types
+        try:
+            category_id = category_name_to_id[el["type"]]
+        except KeyError:
+            # Convert KeyError to IndexError to match original behavior
+            raise IndexError("list index out of range")
+
+        coordinates = el["metadata"].get("coordinates")
+        if coordinates:
+            bbox = [
+                float(coordinates["points"][0][0]),
+                float(coordinates["points"][0][1]),
+                float(abs(coordinates["points"][0][0] - coordinates["points"][2][0])),
+                float(abs(coordinates["points"][0][1] - coordinates["points"][1][1])),
+            ]
+            area = float(abs(coordinates["points"][0][0] - coordinates["points"][2][0])) * float(
+                abs(coordinates["points"][0][1] - coordinates["points"][1][1])
+            )
+        else:
+            bbox = []
+            area = None
+
+        annotations.append(
+            {
+                "id": el["element_id"],
+                "category_id": category_id,
+                "bbox": bbox,
+                "area": area,
+            }
+        )
+
     coco_dataset["annotations"] = annotations
     return coco_dataset
