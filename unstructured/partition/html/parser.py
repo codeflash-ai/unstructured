@@ -764,8 +764,15 @@ class Anchor(Phrasing):
         if not link_text or not link_url:
             return element
 
-        element.metadata.link_texts = (element.metadata.link_texts or []) + [link_text]
-        element.metadata.link_urls = (element.metadata.link_urls or []) + [link_url]
+        if element.metadata.link_texts is not None:
+            element.metadata.link_texts.append(link_text)
+        else:
+            element.metadata.link_texts = [link_text]
+
+        if element.metadata.link_urls is not None:
+            element.metadata.link_urls.append(link_url)
+        else:
+            element.metadata.link_urls = [link_url]
 
         return element
 
