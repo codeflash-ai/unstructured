@@ -19,6 +19,10 @@ from unstructured.documents.elements import Element, Text
 from unstructured.partition.pdf_image.analysis.processor import AnalysisProcessor
 from unstructured.partition.utils.sorting import coordinates_to_bbox
 
+_YOLOX_CLASSES = list(YOLOX_LABEL_MAP.values())
+
+_DETECTRON_CLASSES = list(DETECTRON_LABEL_MAP.values())
+
 
 class LayoutDumper(ABC):
     layout_source: str = "unknown"
@@ -53,9 +57,9 @@ def extract_document_layout_info(layout: DocumentLayout) -> dict:
 def object_detection_classes(model_name) -> List[str]:
     model = get_model(model_name)
     if isinstance(model, UnstructuredYoloXModel):
-        return list(YOLOX_LABEL_MAP.values())
+        return _YOLOX_CLASSES
     if isinstance(model, UnstructuredDetectronONNXModel):
-        return list(DETECTRON_LABEL_MAP.values())
+        return _DETECTRON_CLASSES
     else:
         raise ValueError(f"Cannot get OD model classes - unknown model type: {model_name}")
 
