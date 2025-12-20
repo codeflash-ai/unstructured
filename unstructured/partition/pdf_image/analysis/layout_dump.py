@@ -1,6 +1,7 @@
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
@@ -50,6 +51,7 @@ def extract_document_layout_info(layout: DocumentLayout) -> dict:
     return {"pages": pages}
 
 
+@lru_cache(maxsize=8)
 def object_detection_classes(model_name) -> List[str]:
     model = get_model(model_name)
     if isinstance(model, UnstructuredYoloXModel):
