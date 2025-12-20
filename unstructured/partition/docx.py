@@ -350,11 +350,10 @@ class _DocxPartitioner:
         # Microsoft Teams chat transcript exported to DOCX contains no sections. Such a
         # "section-less" document has to be interated differently and has no headers or footers and
         # therefore no page-size or margins.
-        return (
-            self._iter_document_elements()
-            if self._document_contains_sections
-            else self._iter_sectionless_document_elements()
-        )
+        if self._document_contains_sections:
+            yield from self._iter_document_elements()
+        else:
+            yield from self._iter_sectionless_document_elements()
 
     def _iter_document_elements(self) -> Iterator[Element]:
         """Generate each document-element in (docx) `document` in document order."""
