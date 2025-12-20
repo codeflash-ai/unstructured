@@ -525,32 +525,35 @@ class _DocxPartitioner:
     def _header_footer_text(self, hdrftr: _Header | _Footer) -> str:
         """The text enclosed in `hdrftr` as a single string.
 
-        Each paragraph is included along with the text of each table cell. Empty text is omitted.
-        Each paragraph text-item is separated by a newline ("\n") although note that a paragraph
-        that contains a line-break will also include a newline representing that line-break, so
-        newlines do not necessarily distinguish separate paragraphs.
+                Each paragraph is included along with the text of each table cell. Empty text is omitted.
+                Each paragraph text-item is separated by a newline ("
+        ") although note that a paragraph
+                that contains a line-break will also include a newline representing that line-break, so
+                newlines do not necessarily distinguish separate paragraphs.
 
-        The entire text of a table is included as a single string with a space separating the text
-        of each cell.
+                The entire text of a table is included as a single string with a space separating the text
+                of each cell.
 
-        A header with no text or only whitespace returns the empty string ("").
+                A header with no text or only whitespace returns the empty string ("").
         """
 
-        def iter_hdrftr_texts(hdrftr: _Header | _Footer) -> Iterator[str]:
-            """Generate each text item in `hdrftr` stripped of leading and trailing whitespace.
+        # Numba does not support arbitrary Python objects or isinstance, so we cannot JIT compile the
+        # existing inner function. We will replace the generator with a regular for loop and list,
+        # which avoids Python generator overhead.
 
-            This includes paragraphs as well as table cell contents.
-            """
-            for block_item in hdrftr.iter_inner_content():
-                if isinstance(block_item, Paragraph):
-                    yield block_item.text.strip()
-                # -- can only be a Paragraph or Table so far but more types may come later --
-                elif isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
-                    block_item, DocxTable
-                ):
-                    yield " ".join(self._iter_table_texts(block_item))
-
-        return "\n".join(text for text in iter_hdrftr_texts(hdrftr) if text)
+        # The following does exactly what the generator expression did, but as a collected list:
+        texts = []
+        for block_item in hdrftr.iter_inner_content():
+            if isinstance(block_item, Paragraph):
+                stripped = block_item.text.strip()
+                if stripped:
+                    texts.append(stripped)
+            # -- can only be a Paragraph or Table so far but more types may come later --
+            elif isinstance(block_item, DocxTable):  # pyright: ignore[reportUnnecessaryIsInstance]
+                table_text = " ".join(self._iter_table_texts(block_item))
+                if table_text:
+                    texts.append(table_text)
+        return "\n".join(texts)
 
     def _is_list_item(self, paragraph: Paragraph) -> bool:
         """True when `paragraph` can be identified as a list-item."""
