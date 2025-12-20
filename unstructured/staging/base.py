@@ -133,25 +133,31 @@ convert_to_dict = elements_to_dicts
 
 
 def element_to_md(element: Element, exclude_binary_image_data: bool = False) -> str:
-    match element:
-        case Title(text=text):
-            return f"# {text}"
-        case Table(metadata=metadata, text=text) if metadata.text_as_html is not None:
-            return metadata.text_as_html
-        case Image(metadata=metadata, text=text) if (
-            metadata.image_base64 is not None
-            and metadata.image_mime_type is None
-            and not exclude_binary_image_data
-        ):
-            return f"![{text}](data:image/*;base64,{metadata.image_base64})"
-        case Image(metadata=metadata, text=text) if (
-            metadata.image_base64 is not None and not exclude_binary_image_data
-        ):
-            return f"![{text}](data:{metadata.image_mime_type};base64,{metadata.image_base64})"
-        case Image(metadata=metadata, text=text) if metadata.image_url is not None:
-            return f"![{text}]({metadata.image_url})"
-        case _:
-            return element.text
+    # Fast path via isinstance to avoid match dispatch
+    if isinstance(element, Title):
+        # Title conversion
+        return f"# {element.text}"
+    elif isinstance(element, Table) and getattr(element.metadata, "text_as_html", None) is not None:
+        # Table conversion with HTML available
+        return element.metadata.text_as_html
+    elif isinstance(element, Image):
+        metadata = element.metadata
+        text = element.text
+        image_base64 = getattr(metadata, "image_base64", None)
+        image_mime_type = getattr(metadata, "image_mime_type", None)
+        image_url = getattr(metadata, "image_url", None)
+
+        # Case 1: Image data, mime unspecified, not excluding binary image data
+        if image_base64 is not None and image_mime_type is None and not exclude_binary_image_data:
+            return f"![{text}](data:image/*;base64,{image_base64})"
+        # Case 2: Image data, mime specified, not excluding binary image data
+        elif image_base64 is not None and not exclude_binary_image_data:
+            return f"![{text}](data:{image_mime_type};base64,{image_base64})"
+        # Case 3: Image URL
+        elif image_url is not None:
+            return f"![{text}]({image_url})"
+    # Default: return text
+    return element.text
 
 
 def elements_to_md(
