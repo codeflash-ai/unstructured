@@ -452,7 +452,7 @@ class PreChunk:
         # -- efficient and definitely more robust than hoping two different computations of combined
         # -- length continue to get the same answer as the code evolves. Only possible because
         # -- `.combine()` is non-mutating.
-        combined_len = len(self.combine(pre_chunk)._text)
+        combined_len = self._combined_text_length(pre_chunk)
 
         return combined_len <= self._opts.hard_max
 
@@ -516,6 +516,38 @@ class PreChunk:
         that of the next by a blank line ("\n\n").
         """
         return self._opts.text_separator.join(self._iter_text_segments())
+
+    def _combined_text_length(self, pre_chunk: PreChunk) -> int:
+        """Calculate the length of combined text without building the actual string."""
+        # Calculate length of self elements
+        self_length = 0
+        if self._overlap_prefix:
+            self_length += len(self._overlap_prefix) + len(self._opts.text_separator)
+
+        for element in self._elements:
+            text = getattr(element, "text", str(element))
+            self_length += len(text.strip())
+
+        # Add separators between self elements
+        if len(self._elements) > 1:
+            self_length += len(self._opts.text_separator) * (len(self._elements) - 1)
+
+        # Calculate length of other elements
+        other_length = 0
+        for element in pre_chunk._elements:
+            text = getattr(element, "text", str(element))
+            other_length += len(text.strip())
+
+        # Add separators between other elements
+        if len(pre_chunk._elements) > 1:
+            other_length += len(self._opts.text_separator) * (len(pre_chunk._elements) - 1)
+
+        # Add separator between self and other if both have elements
+        total_length = self_length + other_length
+        if self._elements and pre_chunk._elements:
+            total_length += len(self._opts.text_separator)
+
+        return total_length
 
 
 # ================================================================================================
@@ -1229,7 +1261,6 @@ class _PreChunkAccumulator:
         # -- an empty accumulator always has room --
         if self._pre_chunk is None:
             return True
-
         return self._pre_chunk.can_combine(pre_chunk)
 
 
