@@ -15,7 +15,7 @@ click==8.3.1
     #   pip-tools
 distlib==0.4.0
     # via virtualenv
-filelock==3.20.0
+filelock==3.20.3
     # via virtualenv
 identify==2.6.15
     # via pre-commit
@@ -50,7 +50,7 @@ typing-extensions==4.15.0
     #   -c base.txt
     #   -c test.txt
     #   virtualenv
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via pre-commit
 wheel==0.45.1
     # via pip-tools
