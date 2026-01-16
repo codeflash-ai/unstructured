@@ -162,16 +162,47 @@ def test_aggregate_by_block():
     expected = "Inside region1 Inside region2"
     embedded_regions = TextRegions.from_list(
         [
-            TextRegion.from_coords(0, 0, 20, 20, "Inside region1"),
-            TextRegion.from_coords(20, 20, 80, 80, None),
-            TextRegion.from_coords(50, 50, 150, 150, "Inside region2"),
+            TextRegion.from_coords(0, 0, 300, 20, "Inside region1"),
+            TextRegion.from_coords(0, 20, 300, 80, None),
+            TextRegion.from_coords(0, 80, 200, 300, "Inside region2"),
             TextRegion.from_coords(250, 250, 350, 350, "Outside region"),
         ]
     )
+    embedded_regions.is_extracted_array = np.array([IsExtracted.TRUE] * 4)
     target_region = TextRegions.from_list([TextRegion.from_coords(0, 0, 300, 300)])
 
-    text, _ = aggregate_embedded_text_by_block(target_region, embedded_regions)
+    text, extracted = aggregate_embedded_text_by_block(target_region, embedded_regions)
     assert text == expected
+    assert extracted.value == "true"
+
+
+def test_aggregate_only_partially_fill_target():
+    expected = "Inside region1"
+    embedded_regions = TextRegions.from_list(
+        [
+            TextRegion.from_coords(0, 0, 20, 20, "Inside region1"),
+        ]
+    )
+    embedded_regions.is_extracted_array = np.array([IsExtracted.TRUE])
+    target_region = TextRegions.from_list([TextRegion.from_coords(0, 0, 300, 300)])
+
+    text, extracted = aggregate_embedded_text_by_block(target_region, embedded_regions)
+    assert text == expected
+    assert extracted.value == "partial"
+
+
+def test_aggregate_not_filling_target():
+    embedded_regions = TextRegions.from_list(
+        [
+            TextRegion.from_coords(300, 0, 400, 20, "outside"),
+        ]
+    )
+    embedded_regions.is_extracted_array = np.array([IsExtracted.TRUE])
+    target_region = TextRegions.from_list([TextRegion.from_coords(0, 0, 300, 300)])
+
+    text, extracted = aggregate_embedded_text_by_block(target_region, embedded_regions)
+    assert text == ""
+    assert extracted.value == "false"
 
 
 @pytest.mark.parametrize(
@@ -253,10 +284,13 @@ def test_process_file_with_pdfminer():
 
 def test_process_file_with_pdfminer_is_extracted_array():
     layout, _ = process_file_with_pdfminer(example_doc_path("pdf/layout-parser-paper-fast.pdf"))
-    assert all(is_extracted is IsExtracted.TRUE for is_extracted in layout[0].is_extracted_array)
+    # first page contains rotated text that are considered low fidelity, i.e., is_extracted=partial
+    assert layout[0].is_extracted_array[0] is None
+    assert all(is_extracted is IsExtracted.TRUE for is_extracted in layout[1].is_extracted_array)
 
 
 def test_process_file_hidden_ocr_text():
+    """Test processing a PDF that contains hidden OCR text layer."""
     layout, _ = process_file_with_pdfminer(example_doc_path("pdf/pdf-with-ocr-text.pdf"))
     assert all(is_extracted is None for is_extracted in layout[0].is_extracted_array[:-1])
     assert layout[0].is_extracted_array[-1] == IsExtracted.TRUE
@@ -278,16 +312,14 @@ def test_laprams_are_passed_from_partition_to_pdfminer(pdfminer_mock):
     }
 
 
-def create_mock_ltchar(text, invisible=False):
+def create_mock_ltchar(text, invisible=False, rotated=False):
     """Create a mock LTChar object"""
 
     graphicstate = Mock()
-    if invisible:
-        graphicstate.scolor = None
-        graphicstate.ncolor = None
+    matrix = (1, 0.5, 0, 1, 0, 0) if rotated else (1, 0, 0, 1, 0, 0)
 
     char = LTChar(
-        matrix=(1, 0, 0, 1, 0, 0),  # transformation matrix
+        matrix=matrix,  # transformation matrix
         font=Mock(),  # you'd need to mock PDFFont
         fontsize=12,
         scaling=1,
@@ -298,6 +330,10 @@ def create_mock_ltchar(text, invisible=False):
         ncs=Mock(),
         graphicstate=graphicstate,
     )
+    if invisible:
+        char.rendermode = 3
+    else:
+        char.rendermode = 0
 
     return char
 
@@ -318,11 +354,11 @@ def test_text_is_embedded():
         create_mock_ltchar("H"),
         create_mock_ltchar("e"),
         create_mock_ltchar("l"),
-        create_mock_ltchar("l"),
+        create_mock_ltchar("l", rotated=True),
         create_mock_ltchar("o", invisible=True),
     ]
 
     container = create_mock_ltcontainer(chars)
 
     assert text_is_embedded(container, threshold=0.5)
-    assert not text_is_embedded(container, threshold=0.1)
+    assert not text_is_embedded(container, threshold=0.3)

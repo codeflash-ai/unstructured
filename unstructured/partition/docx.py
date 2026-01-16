@@ -54,6 +54,39 @@ from unstructured.partition.text_type import (
 from unstructured.partition.utils.constants import PartitionStrategy
 from unstructured.utils import is_temp_file_path, lazyproperty
 
+STYLE_TO_ELEMENT_MAPPING = {
+    "Caption": Text,  # TODO(robinson) - add caption element type
+    "Heading 1": Title,
+    "Heading 2": Title,
+    "Heading 3": Title,
+    "Heading 4": Title,
+    "Heading 5": Title,
+    "Heading 6": Title,
+    "Heading 7": Title,
+    "Heading 8": Title,
+    "Heading 9": Title,
+    "Intense Quote": Text,  # TODO(robinson) - add quote element type
+    "List": ListItem,
+    "List 2": ListItem,
+    "List 3": ListItem,
+    "List Bullet": ListItem,
+    "List Bullet 2": ListItem,
+    "List Bullet 3": ListItem,
+    "List Continue": ListItem,
+    "List Continue 2": ListItem,
+    "List Continue 3": ListItem,
+    "List Number": ListItem,
+    "List Number 2": ListItem,
+    "List Number 3": ListItem,
+    "List Paragraph": ListItem,
+    "Macro Text": Text,
+    "No Spacing": Text,
+    "Quote": Text,  # TODO(robinson) - add quote element type
+    "Subtitle": Title,
+    "TOCHeading": Title,
+    "Title": Title,
+}
+
 DETECTION_ORIGIN: str = "docx"
 # -- CT_* stands for "complex-type", an XML element type in docx parlance --
 BlockElement: TypeAlias = "CT_P | CT_Tbl"
@@ -884,7 +917,8 @@ class _DocxPartitioner:
         """
 
         def _extract_number(suffix: str) -> int:
-            return int(suffix.split()[-1]) - 1 if suffix.split()[-1].isdigit() else 0
+            parts = suffix.split()
+            return int(parts[-1]) - 1 if (parts and parts[-1].isdigit()) else 0
 
         # Heading styles
         if style_name.startswith("Heading"):
@@ -894,8 +928,8 @@ class _DocxPartitioner:
             return 1
 
         # List styles
-        list_prefixes = ["List", "List Bullet", "List Continue", "List Number"]
-        if any(style_name.startswith(prefix) for prefix in list_prefixes):
+        list_prefixes = ("List", "List Bullet", "List Continue", "List Number")
+        if style_name.startswith(list_prefixes):
             return _extract_number(style_name)
 
         # Other styles
@@ -925,38 +959,6 @@ class _DocxPartitioner:
         # NOTE(robinson) - documentation on built-in styles at the link below:
         # https://python-docx.readthedocs.io/en/latest/user/styles-understanding.html \
         # #paragraph-styles-in-default-template
-        STYLE_TO_ELEMENT_MAPPING = {
-            "Caption": Text,  # TODO(robinson) - add caption element type
-            "Heading 1": Title,
-            "Heading 2": Title,
-            "Heading 3": Title,
-            "Heading 4": Title,
-            "Heading 5": Title,
-            "Heading 6": Title,
-            "Heading 7": Title,
-            "Heading 8": Title,
-            "Heading 9": Title,
-            "Intense Quote": Text,  # TODO(robinson) - add quote element type
-            "List": ListItem,
-            "List 2": ListItem,
-            "List 3": ListItem,
-            "List Bullet": ListItem,
-            "List Bullet 2": ListItem,
-            "List Bullet 3": ListItem,
-            "List Continue": ListItem,
-            "List Continue 2": ListItem,
-            "List Continue 3": ListItem,
-            "List Number": ListItem,
-            "List Number 2": ListItem,
-            "List Number 3": ListItem,
-            "List Paragraph": ListItem,
-            "Macro Text": Text,
-            "No Spacing": Text,
-            "Quote": Text,  # TODO(robinson) - add quote element type
-            "Subtitle": Title,
-            "TOCHeading": Title,
-            "Title": Title,
-        }
 
         # -- paragraph.style can be None in rare cases, so can style.name. That's going
         # -- to mean default style which is equivalent to "Normal" for our purposes.

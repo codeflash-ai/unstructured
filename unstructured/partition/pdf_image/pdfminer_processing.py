@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
@@ -380,26 +381,44 @@ def array_merge_inferred_layout_with_extracted_layout(
     return final_layout
 
 
-def text_is_embedded(obj, threshold=env_config.PDF_MAX_EMBED_INVISIBLE_TEXT_RATIO):
-    invisible_chars = 0
+def _ltchar_is_rotated(char: LTChar) -> bool:
+    # Calculate rotation angle in degrees
+    # For standard text: a=1, b=0, c=0, d=1 (no rotation)
+    rotation_radians = math.atan2(char.matrix[1], char.matrix[0])
+    # 0.001 is the tolerance for nearly flat angles; mainly for handling numerical precision
+    return abs(rotation_radians) > 0.001
+
+
+def text_is_embedded(obj, threshold=env_config.PDF_MAX_EMBED_LOW_FIDELITY_TEXT_RATIO):
+    """Check if text object contains too many low_fidelity text: invisible or rotated
+
+    Low fidelity text means that even though the text is extracted from pdf data but its
+    representation in the partitioned elements may require post processing to make senmatic sense.
+    This includes:
+      - invisible text: text not rendered on the pdf are not present visually when reading the page
+        so those texts may not be high quality information for understanding the page
+      - rotated text: text rotated usually are extracted in the order they appear in the dominant
+        reading order of the page (e.g., left->right, top->down). But if a text is rotated so the
+        last character is at the top (y position) and first character is at the bottom the extracted
+        element would contain words written in reverse order. This makes the extraction low quality.
+    """
+    low_fidelity_chars = 0
     total_chars = 0
 
     def extract_chars(layout_obj):
         """Recursively extract all LTChar objects from layout."""
-        nonlocal invisible_chars, total_chars
+        nonlocal low_fidelity_chars, total_chars
 
         if isinstance(layout_obj, LTChar):
             total_chars += 1
 
-            # Check if text is invisible:
-            #   - rendering mode 3
-            #   - both stroke and non-stroke color are not present or 0
-            if (hasattr(layout_obj, "rendermode") and layout_obj.rendermode == 3) or (
-                hasattr(layout_obj, "graphicstate")
-                and layout_obj.graphicstate.scolor is None
-                and layout_obj.graphicstate.ncolor is None
-            ):
-                invisible_chars += 1
+            # Check if text is low_fidelity:
+            #  - rendering mode 3 (requires custom pdf interpreter comes with this library)
+            #  - text is rotated
+            if (
+                hasattr(layout_obj, "rendermode") and layout_obj.rendermode == 3
+            ) or _ltchar_is_rotated(layout_obj):
+                low_fidelity_chars += 1
         elif isinstance(layout_obj, LTContainer):
             # Recursively process container's children
             for child in layout_obj:
@@ -410,8 +429,8 @@ def text_is_embedded(obj, threshold=env_config.PDF_MAX_EMBED_INVISIBLE_TEXT_RATI
         # when there are no-trivial amount of hidden characters in the object it means there are
         # text that is not rendered -> most likely OCR'ed text for the image content overlying the
         # text and not embedded text that also shows in the rendered pdf
-        invisible_ratio = invisible_chars / total_chars
-        return invisible_ratio < threshold
+        low_fidelity_ratio = low_fidelity_chars / total_chars
+        return low_fidelity_ratio < threshold
     return True
 
 
@@ -766,10 +785,26 @@ def remove_duplicate_elements(
     return elements.slice(np.concatenate(ious))
 
 
+def _aggregated_iou(box1s, box2):
+    intersection = 0.0
+    sum_areas = calculate_bbox_area(box2)
+
+    for i in range(box1s.shape[0]):
+        intersection += calculate_intersection_area(box1s[i, :], box2)
+        sum_areas += calculate_bbox_area(box1s[i, :])
+
+    union = sum_areas - intersection
+
+    if union == 0:
+        return 1.0
+    return intersection / union
+
+
 def aggregate_embedded_text_by_block(
     target_region: TextRegions,
     source_regions: TextRegions,
-    threshold: float = env_config.EMBEDDED_TEXT_AGGREGATION_SUBREGION_THRESHOLD,
+    subregion_threshold: float = env_config.EMBEDDED_TEXT_AGGREGATION_SUBREGION_THRESHOLD,
+    text_coverage_threshold: float = env_config.TEXT_COVERAGE_THRESHOLD,
 ) -> tuple[str, IsExtracted | None]:
     """Extracts the text aggregated from the elements of the given layout that lie within the given
     block."""
@@ -781,18 +816,29 @@ def aggregate_embedded_text_by_block(
         bboxes1_is_almost_subregion_of_bboxes2(
             source_regions.element_coords,
             target_region.element_coords,
-            threshold,
+            subregion_threshold,
         )
         .sum(axis=1)
         .astype(bool)
     )
 
     text = " ".join([text for text in source_regions.slice(mask).texts if text])
-    # if nothing is sliced then it is not extracted
-    is_extracted = sum(mask) and all(
-        flag == IsExtracted.TRUE for flag in source_regions.slice(mask).is_extracted_array
-    )
-    return text, IsExtracted.TRUE if is_extracted else IsExtracted.FALSE
+
+    if sum(mask):
+        source_bboxes = source_regions.slice(mask).element_coords
+        target_bboxes = target_region.element_coords
+
+        iou = _aggregated_iou(source_bboxes, target_bboxes[0, :])
+
+        fully_filled = (
+            all(flag == IsExtracted.TRUE for flag in source_regions.slice(mask).is_extracted_array)
+            and iou > text_coverage_threshold
+        )
+        is_extracted = IsExtracted.TRUE if fully_filled else IsExtracted.PARTIAL
+    else:
+        # if nothing is sliced then it is not extracted
+        is_extracted = IsExtracted.FALSE
+    return text, is_extracted
 
 
 def get_links_in_element(page_links: list, region: Rectangle) -> list:
