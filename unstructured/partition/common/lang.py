@@ -18,6 +18,8 @@ from unstructured.partition.utils.constants import (
     TESSERACT_LANGUAGES_SPLITTER,
 )
 
+_TRANSLATION_TABLE = str.maketrans("", "", "\"'[]")
+
 _ASCII_RE = re.compile(r"^[\x00-\x7F]+$")
 
 # pytesseract.get_languages(config="") only shows user installed language packs,
@@ -521,11 +523,14 @@ def _clean_ocr_languages_arg(ocr_languages: list[str] | str) -> str:
     # extract from list
     if isinstance(ocr_languages, list):
         ocr_languages = "+".join(ocr_languages)
+    elif not isinstance(ocr_languages, str):
+        # Preserve original behavior of raising TypeError for non-str, non-list inputs
+        raise TypeError("expected string or bytes-like object")
 
     # remove extra quotations
-    ocr_languages = re.sub(r"[\"']", "", ocr_languages)
+    ocr_languages = ocr_languages.translate(_TRANSLATION_TABLE)
     # remove brackets
-    ocr_languages = re.sub(r"[\[\]]", "", ocr_languages)
+    ocr_languages = ocr_languages  # brackets already removed by translate; keep comment for clarity
 
     return ocr_languages
 
