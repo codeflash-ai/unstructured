@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_left, bisect_right
 from functools import lru_cache
 from typing import Iterable, Iterator, Optional
 
@@ -377,7 +378,10 @@ def _get_all_tesseract_langcodes_with_prefix(prefix: str) -> list[str]:
     """
     Get all matching tesseract langcodes with this prefix (may be one or multiple variants).
     """
-    return [langcode for langcode in PYTESSERACT_LANG_CODES if langcode.startswith(prefix)]
+    # Binary search for the range of langcodes starting with prefix
+    lo = bisect_left(PYTESSERACT_LANG_CODES, prefix)
+    hi = bisect_right(PYTESSERACT_LANG_CODES, prefix + "\uffff")
+    return PYTESSERACT_LANG_CODES[lo:hi]
 
 
 def detect_languages(
