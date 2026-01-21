@@ -18,6 +18,8 @@ from unstructured.partition.utils.constants import (
     TESSERACT_LANGUAGES_SPLITTER,
 )
 
+_cached_detect_langs = lru_cache(maxsize=128)(lambda txt: tuple(detect_langs(txt)))
+
 _ASCII_RE = re.compile(r"^[\x00-\x7F]+$")
 
 # pytesseract.get_languages(config="") only shows user installed language packs,
@@ -435,7 +437,7 @@ def detect_languages(
             )
 
         try:
-            langdetect_result = detect_langs(text)
+            langdetect_result = list(_cached_detect_langs(text))
         except lang_detect_exception.LangDetectException as e:
             logger.warning(e)
             return None  # None as default
