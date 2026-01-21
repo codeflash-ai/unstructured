@@ -23,6 +23,15 @@ def _move_cells_for_spanned_cells(cells: List[Dict[str, Any]]):
     """
     sorted_cells = sorted(cells, key=lambda x: (x["y"], x["x"]))
     cells_occupied_by_spanned = set()
+
+    # Build a dictionary mapping row indices to cells in that row for faster lookups
+    cells_by_row = {}
+    for cell in sorted_cells:
+        y = cell["y"]
+        if y not in cells_by_row:
+            cells_by_row[y] = []
+        cells_by_row[y].append(cell)
+
     for cell in sorted_cells:
         if cell["w"] > 1 or cell["h"] > 1:
             for i in range(cell["y"], cell["y"] + cell["h"]):
@@ -31,9 +40,11 @@ def _move_cells_for_spanned_cells(cells: List[Dict[str, Any]]):
                         cells_occupied_by_spanned.add((i, j))
         while (cell["y"], cell["x"]) in cells_occupied_by_spanned:
             cell_y, cell_x = cell["y"], cell["x"]
-            cells_to_the_right = [c for c in sorted_cells if c["y"] == cell_y and c["x"] >= cell_x]
-            for cell_to_move in cells_to_the_right:
-                cell_to_move["x"] += 1
+            # Only iterate over cells in the same row instead of all cells
+            row_cells = cells_by_row.get(cell_y, [])
+            for cell_to_move in row_cells:
+                if cell_to_move["x"] >= cell_x:
+                    cell_to_move["x"] += 1
             cells_occupied_by_spanned.remove((cell_y, cell_x))
     return sorted_cells
 
