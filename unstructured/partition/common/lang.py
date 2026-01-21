@@ -18,6 +18,8 @@ from unstructured.partition.utils.constants import (
     TESSERACT_LANGUAGES_SPLITTER,
 )
 
+_warned_languages = set()
+
 _ASCII_RE = re.compile(r"^[\x00-\x7F]+$")
 
 # pytesseract.get_languages(config="") only shows user installed language packs,
@@ -244,10 +246,12 @@ def tesseract_to_paddle_language(tesseract_language: str) -> str:
 
     lang = PYTESSERACT_TO_PADDLE_LANG_CODE_MAP.get(tesseract_language.lower())
     if not lang:
-        logger.warning(
-            f"{tesseract_language} is not a language code supported by PaddleOCR, "
-            f"proceeding with `en` instead."
-        )
+        if tesseract_language not in _warned_languages:
+            _warned_languages.add(tesseract_language)
+            logger.warning(
+                f"{tesseract_language} is not a language code supported by PaddleOCR, "
+                f"proceeding with `en` instead."
+            )
         return "en"
 
     return lang
