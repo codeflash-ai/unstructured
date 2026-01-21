@@ -23,17 +23,30 @@ def _move_cells_for_spanned_cells(cells: List[Dict[str, Any]]):
     """
     sorted_cells = sorted(cells, key=lambda x: (x["y"], x["x"]))
     cells_occupied_by_spanned = set()
+
+    # Build a mapping from row (y) to list of cells in that row to avoid scanning all cells repeatedly.
+    row_map: Dict[int, List[Dict[str, Any]]] = {}
+    for c in sorted_cells:
+        row_map.setdefault(c["y"], []).append(c)
+
     for cell in sorted_cells:
         if cell["w"] > 1 or cell["h"] > 1:
-            for i in range(cell["y"], cell["y"] + cell["h"]):
-                for j in range(cell["x"], cell["x"] + cell["w"]):
-                    if (i, j) != (cell["y"], cell["x"]):
+            y0 = cell["y"]
+            x0 = cell["x"]
+            h = cell["h"]
+            w = cell["w"]
+            for i in range(y0, y0 + h):
+                for j in range(x0, x0 + w):
+                    if (i, j) != (y0, x0):
                         cells_occupied_by_spanned.add((i, j))
         while (cell["y"], cell["x"]) in cells_occupied_by_spanned:
             cell_y, cell_x = cell["y"], cell["x"]
-            cells_to_the_right = [c for c in sorted_cells if c["y"] == cell_y and c["x"] >= cell_x]
-            for cell_to_move in cells_to_the_right:
-                cell_to_move["x"] += 1
+            row_cells = row_map.get(cell_y)
+            if row_cells:
+                # Increment x for every cell in the same row with x >= cell_x
+                for cell_to_move in row_cells:
+                    if cell_to_move["x"] >= cell_x:
+                        cell_to_move["x"] += 1
             cells_occupied_by_spanned.remove((cell_y, cell_x))
     return sorted_cells
 
