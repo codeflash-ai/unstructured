@@ -365,12 +365,14 @@ def _convert_language_code_to_pytesseract_lang_code(lang: str) -> str:
     return ""
 
 
+@lru_cache(maxsize=256)
 def _get_iso639_language_object(lang: str) -> Optional[iso639.Language]:
-    language = _cached_iso639_language_match(lang)
-    if language is not None:
-        return language
-    logger.warning(f"{lang} is not a valid standard language code.")
-    return None
+    normalized_lang = lang.lower()
+    try:
+        return iso639.Language.match(normalized_lang)  # pyright: ignore[reportUnknownMemberType]
+    except iso639.LanguageNotFoundError:
+        logger.warning(f"{lang} is not a valid standard language code.")
+        return None
 
 
 def _get_all_tesseract_langcodes_with_prefix(prefix: str) -> list[str]:
