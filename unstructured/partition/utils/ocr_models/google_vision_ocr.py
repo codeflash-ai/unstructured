@@ -35,11 +35,14 @@ class OCRAgentGoogleVision(OCRAgent):
 
     def get_text_from_image(self, image: PILImage.Image) -> str:
         image_context = ImageContext(language_hints=[self.language]) if self.language else None
-        with BytesIO() as buffer:
-            image.save(buffer, format="PNG")
-            response = self.client.document_text_detection(
-                image=Image(content=buffer.getvalue()), image_context=image_context
-            )
+
+        image_bytes = self._try_get_original_file_bytes(image)
+        if image_bytes is None:
+            image_bytes = self._encode_image_bytes(image)
+
+        response = self.client.document_text_detection(
+            image=Image(content=image_bytes), image_context=image_context
+        )
         document = response.full_text_annotation
         assert isinstance(document, TextAnnotation)
         return document.text
@@ -114,3 +117,36 @@ class OCRAgentGoogleVision(OCRAgent):
                     para += line
                     line = ""
         return para
+
+    def _try_get_original_file_bytes(self, image: PILImage.Image) -> Optional[bytes]:
+        fp = getattr(image, "fp", None)
+        if fp is None or not all(hasattr(fp, attr) for attr in ("read", "seek", "tell")):
+            return None
+        try:
+            current_pos = fp.tell()
+            fp.seek(0)
+            data = fp.read()
+            fp.seek(current_pos)
+            if isinstance(data, (bytes, bytearray)):
+                return bytes(data)
+        except Exception:
+            try:
+                fp.seek(current_pos)
+            except Exception:
+                pass
+        return None
+
+    def _encode_image_bytes(self, image: PILImage.Image) -> bytes:
+        needs_png = image.mode in ("RGBA", "LA") or image.info.get("transparency") is not None
+        format = "PNG" if needs_png else "JPEG"
+
+        img_to_save = image
+        if format == "JPEG" and image.mode != "RGB":
+            img_to_save = image.convert("RGB")
+
+        buffer = BytesIO()
+        if format == "JPEG":
+            img_to_save.save(buffer, format=format, quality=85, optimize=False)
+        else:
+            img_to_save.save(buffer, format=format)
+        return buffer.getvalue()
