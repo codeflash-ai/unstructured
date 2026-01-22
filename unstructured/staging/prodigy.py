@@ -22,14 +22,12 @@ def _validate_prodigy_metadata(
                 "The length of the metadata parameter does not match with"
                 " the length of the elements parameter.",
             )
-        id_error_index: Optional[int] = next(
-            (index for index, metadatum in enumerate(metadata) if "id" in metadatum),
-            None,
-        )
-        if isinstance(id_error_index, int):
-            raise ValueError(
-                f'The key "id" is not allowed with metadata parameter at index: {id_error_index}',
-            )
+        # Use an indexed loop to find the first metadatum containing "id"
+        for index, metadatum in enumerate(metadata):
+            if "id" in metadatum:
+                raise ValueError(
+                    f'The key "id" is not allowed with metadata parameter at index: {index}',
+                )
         validated_metadata = metadata
     else:
         validated_metadata = [{} for _ in elements]
@@ -48,11 +46,15 @@ def stage_for_prodigy(
     validated_metadata: Iterable[Dict[str, str]] = _validate_prodigy_metadata(elements, metadata)
 
     prodigy_data: PRODIGY_TYPE = []
+    append = prodigy_data.append
     for element, metadatum in zip(elements, validated_metadata):
-        if isinstance(element.id, str):
-            metadatum["id"] = element.id
-        data: Dict[str, Union[str, Dict[str, str]]] = {"text": element.text, "meta": metadatum}
-        prodigy_data.append(data)
+        # bind attributes locally to avoid repeated attribute access
+        elem_id = element.id
+        elem_text = element.text
+        if isinstance(elem_id, str):
+            metadatum["id"] = elem_id
+        data: Dict[str, Union[str, Dict[str, str]]] = {"text": elem_text, "meta": metadatum}
+        append(data)
 
     return prodigy_data
 
