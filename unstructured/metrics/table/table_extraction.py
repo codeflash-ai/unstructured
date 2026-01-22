@@ -128,9 +128,7 @@ def _convert_table_from_deckerd(content: List[Dict[str, Any]]) -> List[Dict[str,
                 "col_index": table["x"],
                 "content": table["content"],
             }
-        except KeyError:
-            cell_data = EMPTY_CELL
-        except TypeError:
+        except (KeyError, TypeError):
             cell_data = EMPTY_CELL
         table_data.append(cell_data)
     return table_data
