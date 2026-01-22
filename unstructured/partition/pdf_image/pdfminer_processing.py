@@ -915,6 +915,9 @@ def get_uris_from_annots(
         annotation_dict = try_resolve(annotation)
         if not isinstance(annotation_dict, dict):
             continue
+        # Early validation of "A" key before processing other fields
+        if "A" not in annotation_dict:
+            continue
         subtype = annotation_dict.get("Subtype", None)
         if not subtype or isinstance(subtype, PDFObjRef) or str(subtype) != "/'Link'":
             continue
@@ -929,8 +932,6 @@ def get_uris_from_annots(
             system=coordinate_system,
         )
         # Extract type
-        if "A" not in annotation_dict:
-            continue
         uri_dict = try_resolve(annotation_dict["A"])
         if not isinstance(uri_dict, dict):
             continue
@@ -942,7 +943,7 @@ def get_uris_from_annots(
         try:
             if uri_type == "/'URI'":
                 uri = try_resolve(try_resolve(uri_dict["URI"])).decode("utf-8")
-            if uri_type == "/'GoTo'":
+            elif uri_type == "/'GoTo'":
                 uri = try_resolve(try_resolve(uri_dict["D"])).decode("utf-8")
         except Exception:
             pass
