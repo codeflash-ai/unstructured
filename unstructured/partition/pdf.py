@@ -1137,28 +1137,42 @@ def check_coords_within_boundary(
     horizontal_threshold
         a float ranges from [0,1] to scale the horizontal (x-axis) boundary
     """
-    if not coord_has_valid_points(coordinates) and not coord_has_valid_points(boundary):
-        trace_logger.detail(  # type: ignore
-            f"coordinates {coordinates} and boundary {boundary} did not pass validation",
-        )
-        return False
+    coords_valid = coord_has_valid_points(coordinates)
+    if not coords_valid:
+        boundary_valid = coord_has_valid_points(boundary)
+        if not boundary_valid:
+            trace_logger.detail(  # type: ignore
+                f"coordinates {coordinates} and boundary {boundary} did not pass validation",
+            )
+            return False
 
-    boundary_x_min = boundary.points[0][0]
-    boundary_x_max = boundary.points[2][0]
-    boundary_y_min = boundary.points[0][1]
-    boundary_y_max = boundary.points[1][1]
+    # Cache boundary points and compute dimensions once
+    bpoints = boundary.points
+    boundary_x_min = bpoints[0][0]
+    boundary_x_max = bpoints[2][0]
+    boundary_y_min = bpoints[0][1]
+    boundary_y_max = bpoints[1][1]
 
     line_width = boundary_x_max - boundary_x_min
     line_height = boundary_y_max - boundary_y_min
 
+    hor_margin = horizontal_threshold * line_width
+    vert_margin = vertical_threshold * line_height
+
+    # Cache coordinate point values to avoid repeated indexing
+    cpoints = coordinates.points
+    c0x = cpoints[0][0]
+    c2x = cpoints[2][0]
+    c0y = cpoints[0][1]
+
     x_within_boundary = (
-        (coordinates.points[0][0] > boundary_x_min - (horizontal_threshold * line_width))
-        and (coordinates.points[2][0] < boundary_x_max + (horizontal_threshold * line_width))
-        and (coordinates.points[0][0] >= boundary_x_min)
+        (c0x > boundary_x_min - hor_margin)
+        and (c2x < boundary_x_max + hor_margin)
+        and (c0x >= boundary_x_min)
     )
-    y_within_boundary = (
-        coordinates.points[0][1] < boundary_y_max + (vertical_threshold * line_height)
-    ) and (coordinates.points[0][1] > boundary_y_min - (vertical_threshold * line_height))
+    y_within_boundary = (c0y < boundary_y_max + vert_margin) and (
+        c0y > boundary_y_min - vert_margin
+    )
 
     return x_within_boundary and y_within_boundary
 
