@@ -82,12 +82,10 @@ def _inferred_is_elementtype(
         for idx, class_name in inferred_layout.element_class_id_map.items()
         if class_name in etypes
     ]
-    inferred_is_etypes = np.zeros((len(inferred_layout),)).astype(bool)
-    for idx in inferred_text_idx:
-        inferred_is_etypes = np.logical_or(
-            inferred_is_etypes, inferred_layout.element_class_ids == idx
-        )
-    return inferred_is_etypes
+    # Vectorized membership test replaces repeated logical_or loops
+    if len(inferred_text_idx) == 0:
+        return np.zeros((len(inferred_layout),)).astype(bool)
+    return np.isin(inferred_layout.element_class_ids, inferred_text_idx)
 
 
 def _inferred_is_text(inferred_layout: LayoutElements) -> np.ndarry:
@@ -162,9 +160,19 @@ def _merge_extracted_that_are_subregion_of_inferred_text(
     # region can not overlap; so first match here __should__ also be the only match
     inferred_to_iter = inferred_to_proc[inferred_to_proc]
     extracted_to_iter = extracted_to_proc[extracted_to_proc]
-    for inferred_index, inferred_row in enumerate(extracted_is_subregion_of_inferred.T):
-        matches = np.where(inferred_row)[0]
-        if not matches.size:
+
+    # iterate only over inferred indices that actually have matches to reduce loop overhead
+    # extracted_is_subregion_of_inferred shape: (n_extracted_filtered, n_inferred_filtered)
+    if extracted_is_subregion_of_inferred.size == 0:
+        return inferred_layout
+
+    has_any_match_per_inferred = np.any(extracted_is_subregion_of_inferred, axis=0)
+    inferred_indices_with_matches = np.nonzero(has_any_match_per_inferred)[0]
+
+    for inferred_index in inferred_indices_with_matches:
+        # matches are indices relative to the filtered extracted list
+        matches = np.nonzero(extracted_is_subregion_of_inferred[:, inferred_index])[0]
+        if matches.size == 0:
             continue
         # Technically those two lines below can be vectorized but this loop would still run anyway;
         # it is not clear which one is overall faster so might worth profiling in the future
@@ -172,10 +180,22 @@ def _merge_extracted_that_are_subregion_of_inferred_text(
         inferred_to_iter[inferred_index] = False
         # then expand inferred box by all the extracted boxes
         # FIXME (yao): this part is broken at the moment
-        inferred_layout.element_coords[[inferred_index]] = _minimum_containing_coords(
-            inferred_layout.slice([inferred_index]),
-            *[extracted_layout.slice([match]) for match in matches],
-        )
+        # Use stacked coords for fast min/max bounding computation
+        inf_coord = inferred_layout.element_coords[inferred_index]
+        extr_coords = extracted_layout.element_coords[matches]  # (k, 4)
+        # Stack and compute min/max along axis 0
+        stacked = np.vstack((inf_coord.reshape(1, 4), extr_coords))
+        new_coord = np.array(
+            [
+                np.min(stacked[:, 0]),
+                np.min(stacked[:, 1]),
+                np.max(stacked[:, 2]),
+                np.max(stacked[:, 3]),
+            ]
+        ).reshape(1, 4)
+        inferred_layout.element_coords[[inferred_index]] = new_coord
+
+    # write back compacted masks into the original masks (preserve original mapping semantics)
     inferred_to_proc[inferred_to_proc] = inferred_to_iter
     extracted_to_proc[extracted_to_proc] = extracted_to_iter
     return inferred_layout
@@ -203,14 +223,10 @@ def _mark_non_table_inferred_for_removal_if_has_subregion_relationship(
         inferred_layout.element_coords,
         threshold=subregion_threshold,
     )
-    inferred_to_remove_mask = (
-        np.logical_or(
-            inferred_is_subregion_of_extracted,
-            extracted_is_subregion_of_inferred.T,
-        )
-        .sum(axis=1)
-        .astype(bool)
-    )
+    inferred_to_remove_mask = np.logical_or(
+        inferred_is_subregion_of_extracted,
+        extracted_is_subregion_of_inferred.T,
+    ).any(axis=1)
     # NOTE (yao): maybe we should expand those matching extracted region to contain the inferred
     # regions it has subregion relationship with? like we did for inferred regions
     inferred_to_keep[inferred_to_remove_mask] = False
@@ -243,29 +259,21 @@ def array_merge_inferred_layout_with_extracted_layout(
     # below)
     image_indices_to_keep = np.where(extracted_layout.element_class_ids == 1)[0]
     if len(image_indices_to_keep):
-        full_page_image_mask = (
-            boxes_iou(
-                extracted_layout.slice(image_indices_to_keep).element_coords,
-                [full_page_region],
-                threshold=FULL_PAGE_REGION_THRESHOLD,
-            )
-            .sum(axis=1)
-            .astype(bool)
-        )
+        full_page_image_mask = boxes_iou(
+            extracted_layout.slice(image_indices_to_keep).element_coords,
+            [full_page_region],
+            threshold=FULL_PAGE_REGION_THRESHOLD,
+        ).any(axis=1)
         image_indices_to_keep = image_indices_to_keep[~full_page_image_mask]
 
     # ==== RULE 1: any inferred box that is almost the same as an extracted image box, inferred is
     # removed
     # NOTE (yao): what if od model detects table but pdfminer says image -> we would lose the table
-    boxes_almost_same = (
-        boxes_iou(
-            inferred_layout.element_coords,
-            extracted_layout.slice(image_indices_to_keep).element_coords,
-            threshold=same_region_threshold,
-        )
-        .sum(axis=1)
-        .astype(bool)
-    )
+    boxes_almost_same = boxes_iou(
+        inferred_layout.element_coords,
+        extracted_layout.slice(image_indices_to_keep).element_coords,
+        threshold=same_region_threshold,
+    ).any(axis=1)
 
     # drop off those matching inferred from processing
     inferred_layout_to_proc = inferred_layout.slice(~boxes_almost_same)
