@@ -781,8 +781,42 @@ def remove_duplicate_elements(
     n_split = np.ceil(coords.shape[0] / 2e3 / memory_cap_in_gb)
     splits = np.array_split(coords, n_split, axis=0)
 
-    ious = [~np.triu(boxes_iou(split, coords, threshold), k=1).any(axis=1) for split in splits]
-    return elements.slice(np.concatenate(ious))
+    coords_full = get_coords_from_bboxes(coords, round_to=DEFAULT_ROUND)
+    if coords_full.dtype != np.float32:
+        coords_full = coords_full.astype(np.float32)
+    x21 = coords_full[:, 0:1]
+    y21 = coords_full[:, 1:2]
+    x22 = coords_full[:, 2:3]
+    y22 = coords_full[:, 3:4]
+    boxb_area = (x22 - x21 + 1) * (y22 - y21 + 1)
+    boxb_area = boxb_area.round(DEFAULT_ROUND)
+
+    masks = []
+    for split in splits:
+        coords_split = get_coords_from_bboxes(split, round_to=DEFAULT_ROUND)
+        if coords_split.dtype != np.float32:
+            coords_split = coords_split.astype(np.float32)
+
+        x11 = coords_split[:, 0:1]
+        y11 = coords_split[:, 1:2]
+        x12 = coords_split[:, 2:3]
+        y12 = coords_split[:, 3:4]
+
+        inter_w = np.minimum(x12, x22.T) - np.maximum(x11, x21.T) + 1
+        inter_h = np.minimum(y12, y22.T) - np.maximum(y11, y21.T) + 1
+        inter_area = np.maximum(inter_w, 0) * np.maximum(inter_h, 0)
+        inter_area = inter_area.round(DEFAULT_ROUND)
+
+        boxa_area = (x12 - x11 + 1) * (y12 - y11 + 1)
+        boxa_area = boxa_area.round(DEFAULT_ROUND)
+
+        denom = np.maximum(EPSILON_AREA, boxa_area + boxb_area.T - inter_area)
+        mat = inter_area > (threshold * denom)
+
+        mask = ~np.triu(mat, k=1).any(axis=1)
+        masks.append(mask)
+
+    return elements.slice(np.concatenate(masks))
 
 
 def _aggregated_iou(box1s, box2):
