@@ -30,7 +30,7 @@ class CoordinateSystem:
         if not isinstance(other, CoordinateSystem):
             return False
         return (
-            str(self.__class__.__name__) == str(other.__class__.__name__)
+            self.__class__ == other.__class__
             and self.width == other.width
             and self.height == other.height
             and self.orientation == other.orientation
