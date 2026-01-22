@@ -842,16 +842,23 @@ def aggregate_embedded_text_by_block(
 
 
 def get_links_in_element(page_links: list, region: Rectangle) -> list:
-    links_bboxes = [Rectangle(*link.get("bbox")) for link in page_links]
+    if not page_links:
+        return []
+
+    # Extract bbox coordinates directly as numpy array to avoid Rectangle object creation overhead
+    links_bboxes = np.array([link.get("bbox") for link in page_links], dtype=np.float32)
+
     results = bboxes1_is_almost_subregion_of_bboxes2(links_bboxes, [region])
+
+    # Use numpy indexing to efficiently find matches
+    match_indices = np.where(results[:, 0])[0]
     links = [
         {
             "text": page_links[idx].get("text"),
             "url": page_links[idx].get("url"),
             "start_index": page_links[idx].get("start_index"),
         }
-        for idx, result in enumerate(results)
-        if any(result)
+        for idx in match_indices
     ]
 
     return links
