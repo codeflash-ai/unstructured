@@ -880,7 +880,7 @@ def _partition_pdf_with_pdfparser(
 ):
     """Partitions a PDF using pdfparser."""
 
-    elements = []
+    elements: list[Element] = []
 
     for page_elements in extracted_elements:
         # NOTE(crag, christine): always do the basic sort first for deterministic order across
@@ -889,7 +889,7 @@ def _partition_pdf_with_pdfparser(
         if sort_mode != SORT_MODE_BASIC:
             sorted_page_elements = sort_page_elements(sorted_page_elements, sort_mode)
 
-        elements += sorted_page_elements
+        elements.extend(sorted_page_elements)
 
         if include_page_breaks:
             elements.append(PageBreak(text=""))
