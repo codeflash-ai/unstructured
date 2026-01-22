@@ -1028,33 +1028,44 @@ def get_words_from_obj(
     text_len = 0
 
     for text_line in obj:
-        word = ""
+        word_chars = []
         x1, y1, x2, y2 = None, None, None, None
         start_index = 0
+        isalnum = None
         for index, character in enumerate(text_line):
             if isinstance(character, LTChar):
                 characters.append(character)
                 char = character.get_text()
 
-                if word and not char.strip():
+                if word_chars and not char.strip():
                     words.append(
-                        {"text": word, "bbox": (x1, y1, x2, y2), "start_index": start_index},
+                        {
+                            "text": "".join(word_chars),
+                            "bbox": (x1, y1, x2, y2),
+                            "start_index": start_index,
+                        },
                     )
-                    word = ""
+                    word_chars = []
+                    isalnum = None
                     continue
 
                 # TODO(klaijan) - isalnum() only works with A-Z, a-z and 0-9
                 # will need to switch to some pattern matching once we support more languages
-                if not word:
-                    isalnum = char.isalnum()
-                if word and char.isalnum() != isalnum:
-                    isalnum = char.isalnum()
+                char_isalnum = char.isalnum()
+                if not word_chars:
+                    isalnum = char_isalnum
+                if word_chars and char_isalnum != isalnum:
+                    isalnum = char_isalnum
                     words.append(
-                        {"text": word, "bbox": (x1, y1, x2, y2), "start_index": start_index},
+                        {
+                            "text": "".join(word_chars),
+                            "bbox": (x1, y1, x2, y2),
+                            "start_index": start_index,
+                        },
                     )
-                    word = ""
+                    word_chars = []
 
-                if len(word) == 0:
+                if not word_chars:
                     start_index = text_len + index
                     x1 = character.x0
                     y2 = height - character.y0
@@ -1064,12 +1075,18 @@ def get_words_from_obj(
                     x2 = character.x1
                     y2 = height - character.y0
 
-                word += char
+                word_chars.append(char)
             else:
-                words.append(
-                    {"text": word, "bbox": (x1, y1, x2, y2), "start_index": start_index},
-                )
-                word = ""
+                if word_chars:
+                    words.append(
+                        {
+                            "text": "".join(word_chars),
+                            "bbox": (x1, y1, x2, y2),
+                            "start_index": start_index,
+                        },
+                    )
+                    word_chars = []
+                    isalnum = None
         text_len += len(text_line)
     return characters, words
 
