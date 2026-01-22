@@ -68,8 +68,10 @@ def create_unstructured_weaviate_class(class_name: str = "UnstructuredDocument")
         },
     ]
 
+    exclude_set = set(exclude_metadata_keys)
+
     for name, annotation in ElementMetadata.__annotations__.items():
-        if name not in exclude_metadata_keys:
+        if name not in exclude_set:
             data_type = _annotation_to_weaviate_data_type(annotation)
             properties.append(
                 {
