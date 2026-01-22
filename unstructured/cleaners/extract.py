@@ -12,6 +12,10 @@ from unstructured.nlp.patterns import (
     US_PHONE_NUMBERS_RE,
 )
 
+_EMAIL_DATETIMETZ_RE = re.compile(EMAIL_DATETIMETZ_PATTERN)
+
+_DT_FMT = "%a, %d %b %Y %H:%M:%S %z"
+
 
 def _get_indexed_match(text: str, pattern: str, index: int = 0) -> re.Match:
     if not isinstance(index, int) or index < 0:
@@ -77,9 +81,9 @@ def extract_mapi_id(text: str) -> List[str]:
 
 
 def extract_datetimetz(text: str) -> Optional[datetime.datetime]:
-    date_extractions = re.findall(EMAIL_DATETIMETZ_PATTERN, text)
-    if len(date_extractions) > 0:
-        return datetime.datetime.strptime(date_extractions[0], "%a, %d %b %Y %H:%M:%S %z")
+    date_extractions = _EMAIL_DATETIMETZ_RE.search(text)
+    if date_extractions:
+        return datetime.datetime.strptime(date_extractions.group(0), _DT_FMT)
     else:
         return None
 
