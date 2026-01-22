@@ -1092,23 +1092,40 @@ def map_bbox_and_index(words: list[dict[str, Any]], annot: dict[str, Any]):
         annot["text"] = ""
         annot["start_index"] = -1
         return annot
-    distance_from_bbox_start = np.sqrt(
-        (annot["bbox"][0] - np.array([word["bbox"][0] for word in words])) ** 2
-        + (annot["bbox"][1] - np.array([word["bbox"][1] for word in words])) ** 2,
-    )
-    distance_from_bbox_end = np.sqrt(
-        (annot["bbox"][2] - np.array([word["bbox"][2] for word in words])) ** 2
-        + (annot["bbox"][3] - np.array([word["bbox"][3] for word in words])) ** 2,
-    )
-    closest_start = try_argmin(distance_from_bbox_start)
-    closest_end = try_argmin(distance_from_bbox_end)
+
+    # Extract annotation bbox coordinates once
+    a0, a1, a2, a3 = annot["bbox"]
+
+    # Track nearest indices using squared distances (avoid sqrt and large temporary arrays)
+    min_start_dist = float("inf")
+    min_end_dist = float("inf")
+    closest_start = -1
+    closest_end = -1
+
+    for i, word in enumerate(words):
+        wb = word["bbox"]
+        # squared distance from bbox start (annot[0], annot[1]) to word bbox start
+        dxs = a0 - wb[0]
+        dys = a1 - wb[1]
+        dstart = dxs * dxs + dys * dys
+
+        # squared distance from bbox end (annot[2], annot[3]) to word bbox end
+        dxe = a2 - wb[2]
+        dye = a3 - wb[3]
+        dend = dxe * dxe + dye * dye
+
+        if dstart < min_start_dist:
+            min_start_dist = dstart
+            closest_start = i
+        if dend < min_end_dist:
+            min_end_dist = dend
+            closest_end = i
 
     # NOTE(klaijan) - get the word from closest start only if the end index comes after start index
     text = ""
     if closest_end >= closest_start:
-        for _ in range(closest_start, closest_end + 1):
-            text += " "
-            text += words[_]["text"]
+        # Use join over the relevant slice to avoid repeated concatenation
+        text = " ".join(w["text"] for w in words[closest_start : closest_end + 1])
     else:
         text = words[closest_start]["text"]
 
