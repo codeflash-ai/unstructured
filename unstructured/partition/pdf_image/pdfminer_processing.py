@@ -587,11 +587,19 @@ def get_coords_from_bboxes(bboxes, round_to: int = DEFAULT_ROUND) -> np.ndarray:
         return bboxes.round(round_to)
 
     # preallocate memory
-    coords = np.zeros((len(bboxes), 4), dtype=np.float32)
+    # Use np.fromiter to build a contiguous float32 array from the bbox attributes
+    # This avoids per-element Python assignments and reduces memory churn.
+    n = len(bboxes)
+    if n == 0:
+        coords = np.zeros((0, 4), dtype=np.float32)
+        return coords.round(round_to)
 
-    for i, bbox in enumerate(bboxes):
-        coords[i, :] = [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
-
+    flat = np.fromiter(
+        (coord for bbox in bboxes for coord in (bbox.x1, bbox.y1, bbox.x2, bbox.y2)),
+        dtype=np.float32,
+        count=4 * n,
+    )
+    coords = flat.reshape(n, 4)
     return coords.round(round_to)
 
 
