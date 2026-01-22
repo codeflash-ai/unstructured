@@ -15,12 +15,11 @@ from typing import Any, Callable, FrozenSet, Optional, Sequence, cast
 
 from typing_extensions import ParamSpec, TypeAlias, TypedDict
 
-from unstructured.documents.coordinates import (
-    TYPE_TO_COORDINATE_SYSTEM_MAP,
-    CoordinateSystem,
-    RelativeCoordinateSystem,
-)
-from unstructured.partition.utils.constants import UNSTRUCTURED_INCLUDE_DEBUG_METADATA
+from unstructured.documents.coordinates import (TYPE_TO_COORDINATE_SYSTEM_MAP,
+                                                CoordinateSystem,
+                                                RelativeCoordinateSystem)
+from unstructured.partition.utils.constants import \
+    UNSTRUCTURED_INCLUDE_DEBUG_METADATA
 from unstructured.utils import get_call_args_applying_defaults, lazyproperty
 
 Point: TypeAlias = "tuple[float, float]"
@@ -742,8 +741,9 @@ class Element(abc.ABC):
         Returns: new ID value
         """
         data = f"{self.metadata.filename}{self.text}{self.metadata.page_number}{sequence_number}"
-        self._element_id = hashlib.sha256(data.encode()).hexdigest()[:32]
-        return self.id
+        hash_value = hashlib.sha256(data.encode()).hexdigest()[:32]
+        self._element_id = hash_value
+        return hash_value
 
     @property
     def id(self):
@@ -1035,6 +1035,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
