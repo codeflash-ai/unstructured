@@ -54,6 +54,8 @@ from unstructured.partition.text_type import (
 from unstructured.partition.utils.constants import PartitionStrategy
 from unstructured.utils import is_temp_file_path, lazyproperty
 
+_LIST_PREFIXES = ("List", "List Bullet", "List Continue", "List Number")
+
 STYLE_TO_ELEMENT_MAPPING = {
     "Caption": Text,  # TODO(robinson) - add caption element type
     "Heading 1": Title,
@@ -180,6 +182,11 @@ def partition_docx(
     elements = _DocxPartitioner.iter_document_elements(opts)
 
     return list(elements)
+
+
+def _extract_number(suffix: str) -> int:
+    parts = suffix.split()
+    return int(parts[-1]) - 1 if (parts and parts[-1].isdigit()) else 0
 
 
 class DocxPartitionerOptions:
@@ -894,7 +901,9 @@ class _DocxPartitioner:
         # Determine category depth from paragraph ilvl xpath
         xpath = paragraph._element.xpath("./w:pPr/w:numPr/w:ilvl/@w:val")
         if xpath:
-            return round(float(xpath[0]))
+            return int(round(float(xpath[0])))
+
+        # Determine category depth from style name
 
         # Determine category depth from style name
         style_name = (paragraph.style and paragraph.style.name) or "Normal"
@@ -916,10 +925,6 @@ class _DocxPartitioner:
         Category depth is 0-indexed and relative to the other element types in the document.
         """
 
-        def _extract_number(suffix: str) -> int:
-            parts = suffix.split()
-            return int(parts[-1]) - 1 if (parts and parts[-1].isdigit()) else 0
-
         # Heading styles
         if style_name.startswith("Heading"):
             return _extract_number(style_name)
@@ -928,8 +933,7 @@ class _DocxPartitioner:
             return 1
 
         # List styles
-        list_prefixes = ("List", "List Bullet", "List Continue", "List Number")
-        if style_name.startswith(list_prefixes):
+        if style_name.startswith(_LIST_PREFIXES):
             return _extract_number(style_name)
 
         # Other styles
