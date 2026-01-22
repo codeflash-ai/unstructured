@@ -43,8 +43,9 @@ class CoordinateSystem:
     ) -> Tuple[Union[float, int], Union[float, int]]:
         """Convert to this coordinate system from a relative coordinate system."""
         x_orientation, y_orientation = self.orientation.value
-        new_x = convert_coordinate(x, 1, self.width, x_orientation)
-        new_y = convert_coordinate(y, 1, self.height, y_orientation)
+        # inline the common old_t_max == 1 case to avoid the function-call overhead
+        new_x = ((1 - x_orientation) * 0.5 + x * x_orientation) * self.width
+        new_y = ((1 - y_orientation) * 0.5 + y * y_orientation) * self.height
         return new_x, new_y
 
     def convert_to_relative(
