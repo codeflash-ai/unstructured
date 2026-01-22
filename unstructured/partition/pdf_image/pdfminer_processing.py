@@ -786,12 +786,23 @@ def remove_duplicate_elements(
 
 
 def _aggregated_iou(box1s, box2):
-    intersection = 0.0
-    sum_areas = calculate_bbox_area(box2)
+    x1_1, y1_1, x2_1, y2_1 = box1s[:, 0], box1s[:, 1], box1s[:, 2], box1s[:, 3]
+    x1_2, y1_2, x2_2, y2_2 = box2
 
-    for i in range(box1s.shape[0]):
-        intersection += calculate_intersection_area(box1s[i, :], box2)
-        sum_areas += calculate_bbox_area(box1s[i, :])
+    x_inter = np.maximum(x1_1, x1_2)
+    y_inter = np.maximum(y1_1, y1_2)
+    x2_inter = np.minimum(x2_1, x2_2)
+    y2_inter = np.minimum(y2_1, y2_2)
+
+    widths = np.maximum(0, x2_inter - x_inter)
+    heights = np.maximum(0, y2_inter - y_inter)
+    intersections = widths * heights
+
+    box1s_areas = (x2_1 - x1_1) * (y2_1 - y1_1)
+    box2_area = (x2_2 - x1_2) * (y2_2 - y1_2)
+
+    intersection = np.sum(intersections)
+    sum_areas = box2_area + np.sum(box1s_areas)
 
     union = sum_areas - intersection
 
