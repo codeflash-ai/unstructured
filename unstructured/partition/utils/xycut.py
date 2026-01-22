@@ -216,15 +216,30 @@ def points_to_bbox(points):
     assert len(points) == 8
 
     # [x1,y1,x2,y2,x3,y3,x4,y4]
-    left = min(points[::2])
-    right = max(points[::2])
-    top = min(points[1::2])
-    bottom = max(points[1::2])
+    # Initialize from the first pair to avoid creating slices and extra lists
+    x0 = points[0]
+    y0 = points[1]
+    left = right = x0
+    top = bottom = y0
 
-    left = max(left, 0)
-    top = max(top, 0)
-    right = max(right, 0)
-    bottom = max(bottom, 0)
+    # Process remaining three pairs in a single pass
+    for i in (2, 4, 6):
+        x = points[i]
+        y = points[i + 1]
+        if x < left:
+            left = x
+        elif x > right:
+            right = x
+        if y < top:
+            top = y
+        elif y > bottom:
+            bottom = y
+
+    # Preserve original max semantics (including -0.0 behavior) using comparisons
+    left = left if left >= 0 else 0
+    top = top if top >= 0 else 0
+    right = right if right >= 0 else 0
+    bottom = bottom if bottom >= 0 else 0
     return [left, top, right, bottom]
 
 
