@@ -590,7 +590,16 @@ class _DocxPartitioner:
         if is_bulleted_text(paragraph.text):
             return True
 
-        return "<w:numPr>" in paragraph._p.xml
+        # Avoid building the full XML string (paragraph._p.xml) which is expensive.
+        # Instead, walk the element tree and look for a numPr element. Using the
+        # element tags avoids allocating the entire XML and typically exits early.
+        p_elm = paragraph._p
+        for el in p_elm.iter():
+            # tag values are typically in the form "{namespace}localname"
+            # so checking the suffix preserves correctness across namespaces.
+            if isinstance(el.tag, str) and el.tag.endswith("numPr"):
+                return True
+        return False
 
     def _iter_paragraph_elements(self, paragraph: Paragraph) -> Iterator[Element]:
         """Generate zero-or-more document elements for `paragraph`.
