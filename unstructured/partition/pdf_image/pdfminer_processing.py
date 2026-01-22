@@ -599,12 +599,28 @@ def areas_of_boxes_and_intersection_area(
     coords1: np.ndarray, coords2: np.ndarray, round_to: int = DEFAULT_ROUND
 ):
     """compute intersection area and own areas for two groups of bounding boxes"""
-    x11, y11, x12, y12 = np.split(coords1, 4, axis=1)
-    x21, y21, x22, y22 = np.split(coords2, 4, axis=1)
+    # slice columns to get (N,1) column vectors without creating many temporary arrays
+    x11 = coords1[:, 0:1]
+    y11 = coords1[:, 1:2]
+    x12 = coords1[:, 2:3]
+    y12 = coords1[:, 3:4]
 
-    inter_area = np.maximum(
-        (np.minimum(x12, np.transpose(x22)) - np.maximum(x11, np.transpose(x21)) + 1), 0
-    ) * np.maximum((np.minimum(y12, np.transpose(y22)) - np.maximum(y11, np.transpose(y21)) + 1), 0)
+    x21 = coords2[:, 0:1]
+    y21 = coords2[:, 1:2]
+    x22 = coords2[:, 2:3]
+    y22 = coords2[:, 3:4]
+
+    # transpose the second-box columns once for reuse in broadcasts
+    x22_t = x22.T
+    y22_t = y22.T
+    x21_t = x21.T
+    y21_t = y21.T
+
+    # compute intersection width and height and clamp at zero
+    inter_w = np.maximum(np.minimum(x12, x22_t) - np.maximum(x11, x21_t) + 1, 0)
+    inter_h = np.maximum(np.minimum(y12, y22_t) - np.maximum(y11, y21_t) + 1, 0)
+    inter_area = inter_w * inter_h
+
     boxa_area = (x12 - x11 + 1) * (y12 - y11 + 1)
     boxb_area = (x22 - x21 + 1) * (y22 - y21 + 1)
 
@@ -623,7 +639,9 @@ def bboxes1_is_almost_subregion_of_bboxes2(
         coords1, coords2, round_to=round_to
     )
 
-    return (inter_area / np.maximum(boxa_area, EPSILON_AREA) > threshold) & (
+    # Use multiplication to avoid an extra broadcasted division temporary:
+    # inter_area / max(boxa_area, eps) > threshold  <=>  inter_area > threshold * max(boxa_area, eps)
+    return (inter_area > threshold * np.maximum(boxa_area, EPSILON_AREA)) & (
         boxa_area <= boxb_area.T
     )
 
