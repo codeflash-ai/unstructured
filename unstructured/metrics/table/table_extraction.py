@@ -48,7 +48,7 @@ def html_table_to_deckerd(content: str) -> List[Dict[str, Any]]:
         A list of dictionaries where each dictionary represents a cell in the table.
     """
 
-    soup = BeautifulSoup(content, "html.parser")
+    soup = BeautifulSoup(content, "lxml")
     table = soup.find("table")
     rows = table.find_all(["tr"])
     table_data = []
