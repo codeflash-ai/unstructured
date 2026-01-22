@@ -4,6 +4,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Generator, List, Optional, TypeVar, Union
@@ -119,7 +120,7 @@ def _get_optimal_value_for_bbox(
         The optimal value for the given bounding box and parameters given.
     """
     bbox_to_page_ratio = _get_bbox_to_page_ratio(bbox, page_size)
-    slope, intercept = _linear_polyfit_2point(
+    slope, intercept = _cached_linear_polyfit_2point(
         ratio_for_min_value, ratio_for_max_value, min_value, max_value
     )
     value = int(bbox_to_page_ratio * slope + intercept)
@@ -397,6 +398,13 @@ def _linear_polyfit_2point(x0: float, x1: float, y0: float, y1: float):
         slope = (y1 - y0) / (x1 - x0)
         intercept = y0 - slope * x0
     return slope, intercept
+
+
+@lru_cache(maxsize=64)
+def _cached_linear_polyfit_2point(
+    ratio_for_min_value: float, ratio_for_max_value: float, min_value: int, max_value: int
+) -> tuple[float, float]:
+    return _linear_polyfit_2point(ratio_for_min_value, ratio_for_max_value, min_value, max_value)
 
 
 class LayoutDrawer(ABC):
