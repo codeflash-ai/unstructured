@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib
 import io
+from functools import lru_cache
 from typing import IO, Any, Callable, Optional
 
 import requests
@@ -379,5 +380,10 @@ class _PartitionerLoader:
 
         # -- load the partitioner and return it --
         assert file_type.is_partitionable  # -- would be a programming error if this failed --
-        partitioner_module = importlib.import_module(file_type.partitioner_module_qname)
+        partitioner_module = self._get_cached_partitioner_module(file_type.partitioner_module_qname)
         return getattr(partitioner_module, file_type.partitioner_function_name)
+
+    @staticmethod
+    @lru_cache(maxsize=128)
+    def _get_cached_partitioner_module(module_qname: str):
+        return importlib.import_module(module_qname)
