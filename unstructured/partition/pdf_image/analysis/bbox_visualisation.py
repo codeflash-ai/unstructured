@@ -4,6 +4,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Generator, List, Optional, TypeVar, Union
@@ -68,12 +69,7 @@ def get_rgb_color(color: str) -> tuple[int, int, int]:
     Returns:
         A tuple of three integers representing the RGB values of the color.
     """
-    try:
-        rgb_colors = colors.to_rgb(color)
-    except ValueError:
-        print("Error")
-        raise
-    return int(rgb_colors[0] * 255), int(rgb_colors[1] * 255), int(rgb_colors[2] * 255)
+    return _get_rgb_cached(color)
 
 
 @njit(cache=True, fastmath=True)
@@ -189,9 +185,8 @@ def get_text_color(
     """
     if isinstance(background_color, str):
         background_color = get_rgb_color(background_color)
-    background_brightness = (
-        0.299 * background_color[0] + 0.587 * background_color[1] + 0.114 * background_color[0]
-    ) / 255
+    r, g, b = background_color
+    background_brightness = (0.299 * r + 0.587 * g + 0.114 * r) / 255
     if background_brightness > brightness_threshold:
         return COLOR_BLACK
     else:
@@ -397,6 +392,16 @@ def _linear_polyfit_2point(x0: float, x1: float, y0: float, y1: float):
         slope = (y1 - y0) / (x1 - x0)
         intercept = y0 - slope * x0
     return slope, intercept
+
+
+@lru_cache(maxsize=128)
+def _get_rgb_cached(color: str) -> tuple[int, int, int]:
+    try:
+        rgb_colors = colors.to_rgb(color)
+    except ValueError:
+        print("Error")
+        raise
+    return int(rgb_colors[0] * 255), int(rgb_colors[1] * 255), int(rgb_colors[2] * 255)
 
 
 class LayoutDrawer(ABC):
