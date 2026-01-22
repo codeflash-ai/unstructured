@@ -235,9 +235,19 @@ class _ConnectedComponent:
         Used to combine regions of workshet that are "overlapping" row-wise but not actually
         2D-connected.
         """
-        return _ConnectedComponent(
-            self._worksheet, self._cell_coordinate_set.union(other._cell_coordinate_set)
-        )
+        # If other's coordinates are already contained in self, nothing to do.
+        if other._cell_coordinate_set.issubset(self._cell_coordinate_set):
+            return self
+
+        # Copy the larger set and update with the smaller to minimize insertions.
+        if len(self._cell_coordinate_set) >= len(other._cell_coordinate_set):
+            new_set = self._cell_coordinate_set.copy()
+            new_set.update(other._cell_coordinate_set)
+        else:
+            new_set = other._cell_coordinate_set.copy()
+            new_set.update(self._cell_coordinate_set)
+
+        return _ConnectedComponent(self._worksheet, new_set)
 
     @lazyproperty
     def min_x(self) -> int:
