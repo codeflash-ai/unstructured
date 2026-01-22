@@ -406,15 +406,8 @@ class _DocxPartitioner:
             yield from self._iter_section_page_breaks(section_idx, section)
             yield from self._iter_section_headers(section)
 
-            for block_item in section.iter_inner_content():
-                # -- a block-item can be a Paragraph or a Table, maybe others later so elif here.
-                # -- Paragraph is more common so check that first.
-                if isinstance(block_item, Paragraph):
-                    yield from self._iter_paragraph_elements(block_item)
-                elif isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
-                    block_item, DocxTable
-                ):
-                    yield from self._iter_table_element(block_item)
+            # Reuse the shared block-item processor to avoid duplicating the loop logic.
+            yield from self._process_block_items(section.iter_inner_content())
 
             yield from self._iter_section_footers(section)
 
@@ -424,12 +417,8 @@ class _DocxPartitioner:
         A "section-less" DOCX must be iterated differently. Also it will have no headers or footers
         (because those live in a section).
         """
-        for block_item in self._document.iter_inner_content():
-            if isinstance(block_item, Paragraph):
-                yield from self._iter_paragraph_elements(block_item)
-            # -- can only be a Paragraph or Table so far but more types may come later --
-            elif isinstance(block_item, DocxTable):  # pyright: ignore[reportUnnecessaryIsInstance]
-                yield from self._iter_table_element(block_item)
+        # Reuse the shared block-item processor used for sectioned documents.
+        yield from self._process_block_items(self._document.iter_inner_content())
 
     def _classify_paragraph_to_element(self, paragraph: Paragraph) -> Iterator[Element]:
         """Generate zero-or-one document element for `paragraph`.
@@ -972,6 +961,19 @@ class _DocxPartitioner:
         """[contents, tags] pair describing emphasized text in `table`."""
         iter_tbl_emph, iter_tbl_emph_2 = itertools.tee(self._iter_table_emphasis(table))
         return ([e["text"] for e in iter_tbl_emph], [e["tag"] for e in iter_tbl_emph_2])
+
+    def _process_block_items(self, block_iter: Iterator) -> Iterator[Element]:
+        """Shared helper to yield Elements for block items from either a section or document.
+
+        This consolidates the common Paragraph/Table dispatch logic to reduce duplicated
+        generator/loop overhead in the main iterators.
+        """
+        for block_item in block_iter:
+            if isinstance(block_item, Paragraph):
+                yield from self._iter_paragraph_elements(block_item)
+            # -- can only be a Paragraph or Table so far but more types may come later --
+            elif isinstance(block_item, DocxTable):  # pyright: ignore[reportUnnecessaryIsInstance]
+                yield from self._iter_table_element(block_item)
 
 
 # ================================================================================================
