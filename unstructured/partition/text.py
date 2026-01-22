@@ -36,6 +36,10 @@ from unstructured.partition.text_type import (
     is_us_city_state_zip,
 )
 
+_PARAGRAPH_RE = (
+    re.compile(PARAGRAPH_PATTERN) if isinstance(PARAGRAPH_PATTERN, str) else PARAGRAPH_PATTERN
+)
+
 
 @apply_metadata(FileType.TXT)
 @add_chunking_strategy
@@ -213,4 +217,4 @@ def _is_in_header_position(
 
 def _split_by_paragraph(file_text: str) -> list[str]:
     """Split text into paragraphs."""
-    return re.split(PARAGRAPH_PATTERN, file_text.strip())
+    return _PARAGRAPH_RE.split(file_text.strip())
