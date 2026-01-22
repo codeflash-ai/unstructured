@@ -1179,6 +1179,9 @@ def try_argmin(array: np.ndarray) -> int:
         IndexError occurs, it returns -1.
     """
     try:
+        # Use the ndarray method when possible to avoid the overhead of np.argmin dispatch.
+        if isinstance(array, np.ndarray):
+            return int(array.argmin())
         return int(np.argmin(array))
     except IndexError:
         return -1
