@@ -87,12 +87,12 @@ def bbox_is_valid(bbox: Any) -> bool:
         return False
     if len(bbox) != 4:
         return False
-    for v in bbox:
-        try:
-            if v < 0:
-                return False
-        except TypeError:
+    a, b, c, d = bbox
+    try:
+        if a < 0 or b < 0 or c < 0 or d < 0:
             return False
+    except TypeError:
+        return False
     return True
 
 
