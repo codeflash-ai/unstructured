@@ -104,55 +104,60 @@ class TableAlignment:
             total_element_count = 0
             # Get row and col index accuracy
             ground_truth_td_contents_list = [gtd["content"].lower() for gtd in ground_truth_td]
+            content_to_indices: Dict[str, List[int]] = {}
+            for i, s in enumerate(ground_truth_td_contents_list):
+                content_to_indices.setdefault(s, []).append(i)
+
             used_indices = set()
-            indices_tuple_pairs = []
+            # Cache best matching ground-truth string per predicted content to avoid repeated difflib calls
+            match_cache: Dict[str, str] = {}
+
             for td_ele in td:
                 content = td_ele["content"].lower()
                 row_index = td_ele["row_index"]
                 col_idx = td_ele["col_index"]
 
-                matches = difflib.get_close_matches(
-                    content,
-                    ground_truth_td_contents_list,
-                    cutoff=cutoff,
-                    n=1,
-                )
-                # BUG FIX: the previous matched_idx will only output the first matched index if
-                # the match has duplicates in the
-                # ground_truth_td_contents_list, the current fix will output its correspondence idx
-                # once matching is exhausted, it will go back search again the same fashion
-                matching_indices = []
-                if matches != []:
-                    b_indices = [
-                        i
-                        for i, b_string in enumerate(ground_truth_td_contents_list)
-                        if b_string == matches[0] and i not in used_indices
-                    ]
-                    if not b_indices:
+                # Retrieve cached matched string if present
+                if content in match_cache:
+                    matched_string = match_cache[content]
+                else:
+                    matches = difflib.get_close_matches(
+                        content,
+                        ground_truth_td_contents_list,
+                        cutoff=cutoff,
+                        n=1,
+                    )
+                    matched_string = matches[0] if matches else ""
+                    # store empty string to represent no match (consistent with original matched_idx -1)
+                    match_cache[content] = matched_string
+
+                if not matched_string:
+                    matched_idx = -1
+                else:
+                    indices_for_string = content_to_indices.get(matched_string, [])
+                    # Find first unused index in indices_for_string
+                    found_idx = -1
+                    for candidate in indices_for_string:
+                        if candidate not in used_indices:
+                            found_idx = candidate
+                            break
+                    if found_idx == -1 and indices_for_string:
+                        # If all indices are used, reset used_indices and pick the first
                         # If all indices are used, reset used_indices and use the first index
                         used_indices.clear()
-                        b_indices = [
-                            i
-                            for i, b_string in enumerate(ground_truth_td_contents_list)
-                            if b_string == matches[0] and i not in used_indices
-                        ]
-                    matching_index = b_indices[0]
-                    matching_indices.append(matching_index)
-                    used_indices.add(matching_index)
-                else:
-                    matching_indices = [-1]
-                matched_idx = matching_indices[0]
+                        found_idx = indices_for_string[0]
+                    matched_idx = found_idx if found_idx != -1 else -1
+
                 if matched_idx >= 0:
                     gt_row_index = ground_truth_td[matched_idx]["row_index"]
                     gt_col_index = ground_truth_td[matched_idx]["col_index"]
-                    indices_tuple_pairs.append(((row_index, col_idx), (gt_row_index, gt_col_index)))
-
-            for indices_tuple_pair in indices_tuple_pairs:
-                if indices_tuple_pair[0][0] == indices_tuple_pair[1][0]:
-                    aligned_element_row_count += 1
-                if indices_tuple_pair[0][1] == indices_tuple_pair[1][1]:
-                    aligned_element_col_count += 1
-                total_element_count += 1
+                    # Immediately compare and count to avoid storing tuples and iterating later
+                    if row_index == gt_row_index:
+                        aligned_element_row_count += 1
+                    if col_idx == gt_col_index:
+                        aligned_element_col_count += 1
+                    total_element_count += 1
+                    used_indices.add(matched_idx)
 
             table_col_index_acc = 0
             table_row_index_acc = 0
