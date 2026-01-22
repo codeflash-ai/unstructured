@@ -657,21 +657,25 @@ def pdfminer_elements_to_text_regions(layout_elements: LayoutElements) -> list[T
     """a temporary solution to convert layout elements to a list of either EmbeddedTextRegion or
     ImageTextRegion; this should be made obsolete after we refactor the merging logic in inference
     library"""
-    from unstructured_inference.inference.elements import (
-        EmbeddedTextRegion,
-        ImageTextRegion,
-    )
+    from unstructured_inference.inference.elements import EmbeddedTextRegion, ImageTextRegion
 
-    regions = []
-    for i, element_class in enumerate(layout_elements.element_class_ids):
-        region_class = EmbeddedTextRegion if element_class == 0 else ImageTextRegion
-        regions.append(
-            region_class.from_coords(
-                *layout_elements.element_coords[i],
-                text=layout_elements.texts[i],
-                source=Source.PDFMINER,
-            )
-        )
+    # Bind frequently used attributes and methods to local variables to reduce attribute lookup overhead.
+    element_class_ids = layout_elements.element_class_ids
+    element_coords = layout_elements.element_coords
+    texts = layout_elements.texts
+    source = Source.PDFMINER
+
+    emb_from = EmbeddedTextRegion.from_coords
+    img_from = ImageTextRegion.from_coords
+
+    n = len(element_class_ids)
+    regions = [None] * n
+    for i in range(n):
+        # Preserve original mapping: 0 -> EmbeddedTextRegion, else -> ImageTextRegion
+        if element_class_ids[i] == 0:
+            regions[i] = emb_from(*element_coords[i], text=texts[i], source=source)
+        else:
+            regions[i] = img_from(*element_coords[i], text=texts[i], source=source)
     return regions
 
 
