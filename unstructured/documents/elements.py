@@ -265,13 +265,18 @@ class ElementMetadata:
         self.emphasized_text_tags = emphasized_text_tags
 
         # -- accommodate pathlib.Path for filename --
-        filename = str(filename) if isinstance(filename, pathlib.Path) else filename
-        # -- produces "", "" when filename arg is None --
-        directory_path, file_name = os.path.split(filename or "")
-        # -- prefer `file_directory` arg if specified, otherwise split of file-path passed as
-        # -- `filename` arg, or None if `filename` is the empty string.
-        self.file_directory = file_directory or directory_path or None
-        self.filename = file_name or None
+        if filename is None:
+            self.file_directory = file_directory
+            self.filename = None
+        else:
+            if isinstance(filename, pathlib.Path):
+                filename = str(filename)
+            # -- produces "", "" when filename arg is None --
+            directory_path, file_name = os.path.split(filename)
+            # -- prefer `file_directory` arg if specified, otherwise split of file-path passed as
+            # -- `filename` arg, or None if `filename` is the empty string.
+            self.file_directory = file_directory or directory_path or None
+            self.filename = file_name or None
 
         self.filetype = filetype
         self.header_footer_type = header_footer_type
@@ -1035,6 +1040,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
