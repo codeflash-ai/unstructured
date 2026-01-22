@@ -587,10 +587,15 @@ def get_coords_from_bboxes(bboxes, round_to: int = DEFAULT_ROUND) -> np.ndarray:
         return bboxes.round(round_to)
 
     # preallocate memory
-    coords = np.zeros((len(bboxes), 4), dtype=np.float32)
+    coords = np.empty((len(bboxes), 4), dtype=np.float32)
 
     for i, bbox in enumerate(bboxes):
-        coords[i, :] = [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
+        # assign directly into the row to avoid creating intermediate lists
+        row = coords[i]
+        row[0] = bbox.x1
+        row[1] = bbox.y1
+        row[2] = bbox.x2
+        row[3] = bbox.y2
 
     return coords.round(round_to)
 
@@ -599,12 +604,26 @@ def areas_of_boxes_and_intersection_area(
     coords1: np.ndarray, coords2: np.ndarray, round_to: int = DEFAULT_ROUND
 ):
     """compute intersection area and own areas for two groups of bounding boxes"""
-    x11, y11, x12, y12 = np.split(coords1, 4, axis=1)
-    x21, y21, x22, y22 = np.split(coords2, 4, axis=1)
+    # use slicing to get column views and reduce temporaries
+    x11 = coords1[:, 0:1]
+    y11 = coords1[:, 1:2]
+    x12 = coords1[:, 2:3]
+    y12 = coords1[:, 3:4]
 
-    inter_area = np.maximum(
-        (np.minimum(x12, np.transpose(x22)) - np.maximum(x11, np.transpose(x21)) + 1), 0
-    ) * np.maximum((np.minimum(y12, np.transpose(y22)) - np.maximum(y11, np.transpose(y21)) + 1), 0)
+    x21 = coords2[:, 0:1]
+    y21 = coords2[:, 1:2]
+    x22 = coords2[:, 2:3]
+    y22 = coords2[:, 3:4]
+
+    # compute intersection widths/heights with minimal temporaries and clamp to >=0 in-place
+    inter_w = np.minimum(x12, x22.T) - np.maximum(x11, x21.T) + 1
+    np.maximum(inter_w, 0, out=inter_w)
+
+    inter_h = np.minimum(y12, y22.T) - np.maximum(y11, y21.T) + 1
+    np.maximum(inter_h, 0, out=inter_h)
+
+    inter_area = inter_w * inter_h
+
     boxa_area = (x12 - x11 + 1) * (y12 - y11 + 1)
     boxb_area = (x22 - x21 + 1) * (y22 - y21 + 1)
 
