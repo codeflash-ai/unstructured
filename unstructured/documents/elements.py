@@ -15,12 +15,11 @@ from typing import Any, Callable, FrozenSet, Optional, Sequence, cast
 
 from typing_extensions import ParamSpec, TypeAlias, TypedDict
 
-from unstructured.documents.coordinates import (
-    TYPE_TO_COORDINATE_SYSTEM_MAP,
-    CoordinateSystem,
-    RelativeCoordinateSystem,
-)
-from unstructured.partition.utils.constants import UNSTRUCTURED_INCLUDE_DEBUG_METADATA
+from unstructured.documents.coordinates import (TYPE_TO_COORDINATE_SYSTEM_MAP,
+                                                CoordinateSystem,
+                                                RelativeCoordinateSystem)
+from unstructured.partition.utils.constants import \
+    UNSTRUCTURED_INCLUDE_DEBUG_METADATA
 from unstructured.utils import get_call_args_applying_defaults, lazyproperty
 
 Point: TypeAlias = "tuple[float, float]"
@@ -391,18 +390,15 @@ class ElementMetadata:
         """
         from unstructured.staging.base import elements_to_base64_gzipped_json
 
-        meta_dict = copy.deepcopy(dict(self.fields))
+        meta_dict: dict[str, Any] = {}
 
-        # -- remove fields that should not be serialized --
-        for field_name in self.DEBUG_FIELD_NAMES:
-            meta_dict.pop(field_name, None)
-
-        # -- don't serialize empty lists --
-        meta_dict: dict[str, Any] = {
-            field_name: value
-            for field_name, value in meta_dict.items()
-            if value != [] and value != {}
-        }
+        # -- build dict incrementally, only adding non-None, non-empty values --
+        for field_name, value in self.fields.items():
+            if field_name in self.DEBUG_FIELD_NAMES:
+                continue
+            if value is None or value == [] or value == {}:
+                continue
+            meta_dict[field_name] = value
 
         # -- serialize sub-object types when present --
         if self.coordinates is not None:
@@ -1035,6 +1031,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
