@@ -204,8 +204,8 @@ def get_label_rect_and_coords(
     text_width: int,
     text_height: int,
 ):
-    indent = max(int(text_width * 0.2), 10)
-    vertical_correction = max(int(text_height * 0.3), 10)
+    indent = max(text_width // 5, 10)
+    vertical_correction = max((text_height * 3) // 10, 10)
 
     # with this the text should be centered in the rectangle
     rect_width = text_width + indent * 2
@@ -215,8 +215,8 @@ def get_label_rect_and_coords(
     x1, y1, x2, y2 = bbox_points
     if alignment is TextAlignment.CENTER:
         # center:
-        horizontal_half = int(rect_width / 2 * 1.05)
-        vertical_half = int(rect_height / 2 * 1.05)
+        horizontal_half = (rect_width * 21) // 40
+        vertical_half = (rect_height * 21) // 40
         center_point = x1 + (x2 - x1) // 2, y1 + (y2 - y1) // 2
         # resize rectangle to make it look better in the center
         label_rectangle = (
@@ -230,7 +230,7 @@ def get_label_rect_and_coords(
             ),
         )
         label_coords = (
-            center_point[0] - horizontal_half + int(indent * 1.05),
+            center_point[0] - horizontal_half + (indent * 21) // 20,
             center_point[1] - vertical_half * 1.05,
         )
     elif alignment is TextAlignment.TOP_LEFT:
