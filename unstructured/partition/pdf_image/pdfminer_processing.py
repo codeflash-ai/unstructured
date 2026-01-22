@@ -1137,16 +1137,17 @@ def calculate_intersection_area(
     x1_1, y1_1, x2_1, y2_1 = bbox1
     x1_2, y1_2, x2_2, y2_2 = bbox2
 
-    x_intersection = max(x1_1, x1_2)
-    y_intersection = max(y1_1, y1_2)
-    x2_intersection = min(x2_1, x2_2)
-    y2_intersection = min(y2_1, y2_2)
+    # Use conditional expressions to avoid builtin call overhead from max/min
+    x_intersection = x1_1 if x1_1 > x1_2 else x1_2
+    y_intersection = y1_1 if y1_1 > y1_2 else y1_2
+    x2_intersection = x2_1 if x2_1 < x2_2 else x2_2
+    y2_intersection = y2_1 if y2_1 < y2_2 else y2_2
 
     if x_intersection < x2_intersection and y_intersection < y2_intersection:
-        intersection_area = calculate_bbox_area(
-            (x_intersection, y_intersection, x2_intersection, y2_intersection),
-        )
-        return intersection_area
+        # Inline area computation to avoid creating a tuple and an extra function call.
+        width = x2_intersection - x_intersection
+        height = y2_intersection - y_intersection
+        return width * height
     else:
         return 0.0
 
