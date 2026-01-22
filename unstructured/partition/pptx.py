@@ -507,5 +507,6 @@ class _NullPicturePartitioner:
     @classmethod
     def iter_elements(cls, picture: Picture, opts: PptxPartitionerOptions) -> Iterator[Element]:
         """No-op picture partitioner."""
-        return
-        yield
+        # Keep this function as a generator that yields nothing.
+        if False:
+            yield
