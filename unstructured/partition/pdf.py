@@ -1095,28 +1095,23 @@ def _combine_coordinates_into_element1(
     element1: Element, element2: Element, coordinate_system: PixelSpace | PointSpace
 ) -> Element:
     """Combine the coordiantes of two elements and apply the updated coordiantes to `elements1`"""
-    x1 = min(
-        element1.metadata.coordinates.points[0][0],
-        element2.metadata.coordinates.points[0][0],
-    )
-    x2 = max(
-        element1.metadata.coordinates.points[2][0],
-        element2.metadata.coordinates.points[2][0],
-    )
-    y1 = min(
-        element1.metadata.coordinates.points[0][1],
-        element2.metadata.coordinates.points[0][1],
-    )
-    y2 = max(
-        element1.metadata.coordinates.points[1][1],
-        element2.metadata.coordinates.points[1][1],
-    )
+    elem1_points = element1.metadata.coordinates.points
+    elem2_points = element2.metadata.coordinates.points
+
+    x1 = min(elem1_points[0][0], elem2_points[0][0])
+    x2 = max(elem1_points[2][0], elem2_points[2][0])
+    y1 = min(elem1_points[0][1], elem2_points[0][1])
+    y2 = max(elem1_points[1][1], elem2_points[1][1])
+
     points = ((x1, y1), (x1, y2), (x2, y2), (x2, y1))
-    element1.metadata.coordinates = CoordinatesMetadata(
+
+    result = copy.copy(element1)
+    result.metadata = copy.copy(element1.metadata)
+    result.metadata.coordinates = CoordinatesMetadata(
         points=points,
         system=coordinate_system,
     )
-    return copy.deepcopy(element1)
+    return result
 
 
 def check_coords_within_boundary(
