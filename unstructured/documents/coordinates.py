@@ -65,8 +65,22 @@ class CoordinateSystem:
         y: Union[float, int],
     ) -> Tuple[Union[float, int], Union[float, int]]:
         """Convert from this coordinate system to another given coordinate system."""
-        rel_x, rel_y = self.convert_to_relative(x, y)
-        return new_system.convert_from_relative(rel_x, rel_y)
+        x_orientation, y_orientation = self.orientation.value
+        new_x_orientation, new_y_orientation = new_system.orientation.value
+
+        x_orientation_product = new_x_orientation * x_orientation
+        relative_x = x / self.width
+        new_x = new_system.width * (
+            (1 - x_orientation_product) / 2 + relative_x * x_orientation_product
+        )
+
+        y_orientation_product = new_y_orientation * y_orientation
+        relative_y = y / self.height
+        new_y = new_system.height * (
+            (1 - y_orientation_product) / 2 + relative_y * y_orientation_product
+        )
+
+        return new_x, new_y
 
     def convert_multiple_coordinates_to_new_system(
         self,
