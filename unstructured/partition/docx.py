@@ -13,8 +13,6 @@ from typing import IO, Any, Iterator, Protocol, Type
 import docx
 from docx.document import Document
 from docx.enum.section import WD_SECTION_START
-from docx.oxml.table import CT_Tbl
-from docx.oxml.text.paragraph import CT_P
 from docx.section import Section, _Footer, _Header
 from docx.table import Table as DocxTable
 from docx.table import _Cell, _Row
@@ -826,8 +824,22 @@ class _DocxPartitioner:
 
     def _paragraph_emphasis(self, paragraph: Paragraph) -> tuple[list[str], list[str]]:
         """[contents, tags] pair describing emphasized text in `paragraph`."""
-        iter_p_emph, iter_p_emph_2 = itertools.tee(self._iter_paragraph_emphasis(paragraph))
-        return ([e["text"] for e in iter_p_emph], [e["tag"] for e in iter_p_emph_2])
+        contents = []
+        tags = []
+        for run in paragraph.runs:
+            run_text = run.text
+            text = run_text.strip() if run_text else ""
+            if not text:
+                continue
+            is_bold = run.bold
+            is_italic = run.italic
+            if is_bold:
+                contents.append(text)
+                tags.append("b")
+            if is_italic:
+                contents.append(text)
+                tags.append("i")
+        return (contents, tags)
 
     def _paragraph_link_meta(self, paragraph: Paragraph) -> tuple[list[str], list[str], list[Link]]:
         """Describes hyperlinks in `paragraph`, if any."""
