@@ -53,7 +53,10 @@ def process_file_with_pdfminer(
 
 
 def _validate_bbox(bbox: list[int | float]) -> bool:
-    return all(x is not None for x in bbox) and (bbox[2] - bbox[0] > 0) and (bbox[3] - bbox[1] > 0)
+    for x in bbox:
+        if x is None:
+            return False
+    return (bbox[2] - bbox[0] > 0) and (bbox[3] - bbox[1] > 0)
 
 
 def _minimum_containing_coords(*regions: TextRegions) -> np.ndarray:
