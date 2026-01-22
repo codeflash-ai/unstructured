@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Dict, List
 
 from bs4 import BeautifulSoup
@@ -107,7 +108,7 @@ def _convert_table_from_html(content: str) -> List[Dict[str, Any]]:
     Returns:
         A list of dictionaries where each dictionary represents a cell in the table.
     """
-    deckerd_cells = html_table_to_deckerd(content)
+    deckerd_cells = _cached_html_table_to_deckerd(content)
     return _convert_table_from_deckerd(deckerd_cells)
 
 
@@ -286,3 +287,8 @@ def extract_cells_from_table_as_cells(element: Dict[str, Any]) -> List[Dict[str,
     if predicted_cells:
         converted_cells = _convert_table_from_deckerd(predicted_cells)
     return converted_cells
+
+
+@lru_cache(maxsize=64)
+def _cached_html_table_to_deckerd(content: str):
+    return tuple(html_table_to_deckerd(content))
