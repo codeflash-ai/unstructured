@@ -68,10 +68,13 @@ def coord_has_valid_points(coordinates: CoordinatesMetadata) -> bool:
     if len(coordinates.points) != 4:
         return False
     for point in coordinates.points:
+        # Validate point length first (will raise TypeError for non-iterable)
         if len(point) != 2:
             return False
+        # Use unpacking for efficiency
+        x, y = point
         try:
-            if point[0] < 0 or point[1] < 0:
+            if x < 0 or y < 0:
                 return False
         except TypeError:
             return False
