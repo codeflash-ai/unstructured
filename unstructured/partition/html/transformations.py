@@ -15,6 +15,26 @@ from unstructured.documents.mappings import (
     ONTOLOGY_CLASS_TO_UNSTRUCTURED_ELEMENT_TYPE,
 )
 
+_TEXT_CLASSES = (
+    ontology.NarrativeText,
+    ontology.Quote,
+    ontology.Paragraph,
+    ontology.Footnote,
+    ontology.FootnoteReference,
+    ontology.Citation,
+    ontology.Bibliography,
+    ontology.Glossary,
+)
+
+_TEXT_CATEGORIES = (ontology.ElementTypeEnum.metadata,)
+
+_INLINE_CLASSES = (ontology.Hyperlink,)
+
+_INLINE_CATEGORIES = (
+    ontology.ElementTypeEnum.specialized_text,
+    ontology.ElementTypeEnum.annotation,
+)
+
 RECURSION_LIMIT = 50
 
 
@@ -168,16 +188,28 @@ def can_unstructured_elements_be_merged(
         recursive=False
     )
 
-    ontology_elements = [
-        parse_html_to_ontology_element(html_tag)
-        for html_tag in chain(current_html_tags, next_html_tags)
-    ]
+    # Iterate through tags from both elements and short-circuit on first failure.
+    for html_tag in chain(current_html_tags, next_html_tags):
+        # Extract the ontology class for this tag without performing a full parse.
+        _, ontology_class = extract_tag_and_ontology_class_from_tag(html_tag)
 
-    for ontology_element in ontology_elements:
-        if ontology_element.children:
+        # Instantiate a lightweight ontology instance to check category/type properties.
+        element_instance = ontology_class()
+
+        # Determine whether this tag would produce children when fully parsed.
+        # This mirrors parse_html_to_ontology_element's has_children logic:
+        # ((ontology_class != UncategorizedText) and any(Tag children)) or layout type
+        has_tag_children = any(isinstance(content, Tag) for content in html_tag.contents)
+        has_children = (ontology_class != ontology.UncategorizedText and has_tag_children) or (
+            element_instance.elementType == ontology.ElementTypeEnum.layout
+        )
+
+        if has_children:
             return False
 
-        if not (is_inline_element(ontology_element) or is_text_element(ontology_element)):
+        # Check if this element is acceptable inline/text element by using the
+        # existing predicate functions on the lightweight instance.
+        if not (is_inline_element(element_instance) or is_text_element(element_instance)):
             return False
 
     return True
@@ -186,37 +218,23 @@ def can_unstructured_elements_be_merged(
 def is_text_element(ontology_element: ontology.OntologyElement) -> bool:
     """Categories or classes that we want to combine with inline text"""
 
-    text_classes = [
-        ontology.NarrativeText,
-        ontology.Quote,
-        ontology.Paragraph,
-        ontology.Footnote,
-        ontology.FootnoteReference,
-        ontology.Citation,
-        ontology.Bibliography,
-        ontology.Glossary,
-    ]
-    text_categories = [ontology.ElementTypeEnum.metadata]
-
-    if any(isinstance(ontology_element, class_) for class_ in text_classes):
+    # Check concrete classes first.
+    if any(isinstance(ontology_element, class_) for class_ in _TEXT_CLASSES):
         return True
 
-    return any(ontology_element.elementType == category for category in text_categories)
+    # Then check category enums.
+    return any(ontology_element.elementType == category for category in _TEXT_CATEGORIES)
 
 
 def is_inline_element(ontology_element: ontology.OntologyElement) -> bool:
     """Categories or classes that we want to combine with text elements"""
 
-    inline_classes = [ontology.Hyperlink]
-    inline_categories = [
-        ontology.ElementTypeEnum.specialized_text,
-        ontology.ElementTypeEnum.annotation,
-    ]
-
-    if any(isinstance(ontology_element, class_) for class_ in inline_classes):
+    # Check concrete classes first.
+    if any(isinstance(ontology_element, class_) for class_ in _INLINE_CLASSES):
         return True
 
-    return any(ontology_element.elementType == category for category in inline_categories)
+    # Then check category enums.
+    return any(ontology_element.elementType == category for category in _INLINE_CATEGORIES)
 
 
 def unstructured_elements_to_ontology(
