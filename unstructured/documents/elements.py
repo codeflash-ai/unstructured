@@ -652,11 +652,18 @@ class ElementType:
         Returns:
             dict: A dictionary where keys are attribute names and values are attribute values.
         """
-        return {
-            attr: getattr(cls, attr)
-            for attr in dir(cls)
-            if not callable(getattr(cls, attr)) and not attr.startswith("__")
-        }
+        # Bind globals to locals to avoid repeated global lookups
+        get_attr = getattr
+        is_callable = callable
+        result: dict = {}
+        for attr in dir(cls):
+            if attr.startswith("__"):
+                continue
+            value = get_attr(cls, attr)
+            if is_callable(value):
+                continue
+            result[attr] = value
+        return result
 
 
 class Element(abc.ABC):
