@@ -696,7 +696,7 @@ class Element(abc.ABC):
         self.metadata.detection_origin = detection_origin
         # -- all `Element` instances get a `text` attribute, defaults to the empty string if not
         # -- defined in a subclass.
-        self.text = self.text if hasattr(self, "text") else ""
+        self.text = getattr(self, "text", "")
 
     def __str__(self):
         return self.text
@@ -742,8 +742,9 @@ class Element(abc.ABC):
         Returns: new ID value
         """
         data = f"{self.metadata.filename}{self.text}{self.metadata.page_number}{sequence_number}"
-        self._element_id = hashlib.sha256(data.encode()).hexdigest()[:32]
-        return self.id
+        hash_value = hashlib.sha256(data.encode()).hexdigest()[:32]
+        self._element_id = hash_value
+        return hash_value
 
     @property
     def id(self):
@@ -1035,6 +1036,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
