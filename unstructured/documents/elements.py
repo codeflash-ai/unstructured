@@ -752,11 +752,15 @@ class Element(abc.ABC):
         return self._element_id
 
     def to_dict(self) -> dict[str, Any]:
+        # Avoid the expensive metadata.to_dict() when metadata is unpopulated.
+        meta = self.metadata
+        # If metadata.__dict__ is empty (common for default ElementMetadata), skip serialization.
+        meta_dict = {} if not getattr(meta, "__dict__", None) else meta.to_dict()
         return {
             "type": None,
             "element_id": self.id,
             "text": self.text,
-            "metadata": self.metadata.to_dict(),
+            "metadata": meta_dict,
         }
 
 
@@ -797,10 +801,17 @@ class CheckBox(Element):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-compatible (str keys) dict."""
-        out = super().to_dict()
-        out["type"] = "CheckBox"
-        out["checked"] = self.checked
-        out["element_id"] = self.id
+        # Build the dict directly to avoid an extra call to super().to_dict()
+        # (which would call metadata.to_dict() unnecessarily).
+        meta = self.metadata
+        meta_dict = {} if not getattr(meta, "__dict__", None) else meta.to_dict()
+        out: dict[str, Any] = {
+            "type": "CheckBox",
+            "element_id": self.id,
+            "text": self.text,
+            "metadata": meta_dict,
+            "checked": self.checked,
+        }
         return out
 
 
@@ -1035,6 +1046,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
