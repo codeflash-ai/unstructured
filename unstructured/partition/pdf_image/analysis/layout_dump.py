@@ -147,16 +147,22 @@ def _extract_final_element_info(element: Element) -> dict:
 
 
 def _extract_final_element_page_size(element: Element) -> dict:
-    try:
-        return {
-            "width": element.metadata.coordinates.system.width,
-            "height": element.metadata.coordinates.system.height,
-        }
-    except AttributeError:
-        return {
-            "width": None,
-            "height": None,
-        }
+    metadata = getattr(element, "metadata", None)
+    if metadata is None:
+        return {"width": None, "height": None}
+
+    coordinates = getattr(metadata, "coordinates", None)
+    if coordinates is None:
+        return {"width": None, "height": None}
+
+    system = getattr(coordinates, "system", None)
+    if system is None:
+        return {"width": None, "height": None}
+
+    return {
+        "width": getattr(system, "width", None),
+        "height": getattr(system, "height", None),
+    }
 
 
 class FinalLayoutDumper(LayoutDumper):
