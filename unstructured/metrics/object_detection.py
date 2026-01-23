@@ -76,8 +76,24 @@ class ObjectDetectionEvalProcessor:
             class_labels (list):        list of class labels
         """
         self.device = device
-        self.document_preds = [pred.to(device) for pred in document_preds]
-        self.document_targets = [target.to(device) for target in document_targets]
+        # Avoid unnecessary device transfers: only call .to(...) when needed for torch.Tensors.
+        device_obj = torch.device(device)
+        self.document_preds = [
+            (
+                pred
+                if isinstance(pred, torch.Tensor) and pred.device == device_obj
+                else pred.to(device)
+            )
+            for pred in document_preds
+        ]
+        self.document_targets = [
+            (
+                target
+                if isinstance(target, torch.Tensor) and target.device == device_obj
+                else target.to(device)
+            )
+            for target in document_targets
+        ]
         self.pages_height = pages_height
         self.pages_width = pages_width
         self.class_labels = class_labels
@@ -232,11 +248,8 @@ class ObjectDetectionEvalProcessor:
         """
         Process the page dimensions from the json file to the required format.
         """
-        pages_height = []
-        pages_width = []
-        for page in data["pages"]:
-            pages_height.append(page["size"]["height"])
-            pages_width.append(page["size"]["width"])
+        pages_height = [page["size"]["height"] for page in data["pages"]]
+        pages_width = [page["size"]["width"] for page in data["pages"]]
         return pages_height, pages_width
 
     @staticmethod
