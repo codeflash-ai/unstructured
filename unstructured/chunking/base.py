@@ -1300,4 +1300,4 @@ def is_on_next_page() -> BoundaryPredicate:
 
 def is_title(element: Element) -> bool:
     """True when `element` is a `Title` element, False otherwise."""
-    return isinstance(element, Title)
+    return type(element) is Title
