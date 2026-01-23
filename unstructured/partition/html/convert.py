@@ -62,10 +62,16 @@ class ElementHtml(ABC):
 
     def get_html_element(self, **kwargs: Any) -> Tag:
         soup: Optional[BeautifulSoup] = kwargs.pop("_soup", None)
-        if soup is None:
-            soup = BeautifulSoup("", HTML_PARSER)
 
-        element_html = self.get_text_as_html()
+        # Only parse text_as_html when there's content to parse to avoid unnecessary parser creation.
+        text_as_html = getattr(self.element.metadata, "text_as_html", None)
+        element_html = self.get_text_as_html() if text_as_html else None
+
+        # Create or reuse a soup only when needed: to create a new tag or when children exist (wrapping/appending).
+        if element_html is None or self.children:
+            if soup is None:
+                soup = BeautifulSoup("", HTML_PARSER)
+
         if element_html is None:
             element_html = soup.new_tag(name=self.html_tag)
             self._inject_html_element_content(element_html, **kwargs)
@@ -126,7 +132,8 @@ class UnorderedListElementHtml(ElementHtml):
 
     def _get_children_html(self, soup: BeautifulSoup, element_html: Tag, **kwargs: Any) -> Tag:
         for child in self.children:
-            child_html = child.get_html_element(**kwargs)
+            # Ensure children reuse the same soup to avoid re-parsing / re-instantiating BeautifulSoup.
+            child_html = child.get_html_element(_soup=soup, **kwargs)
             element_html.append(child_html)
         return element_html
 
