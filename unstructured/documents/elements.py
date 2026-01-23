@@ -688,12 +688,19 @@ class Element(abc.ABC):
             raise ValueError("element_id must be of type str or None.")
 
         self._element_id = element_id
-        self.metadata = ElementMetadata() if metadata is None else metadata
+        # Prepare metadata locally to reduce repeated attribute writes.
+        if metadata is None:
+            meta = ElementMetadata()
+        else:
+            meta = metadata
+
         if coordinates is not None or coordinate_system is not None:
-            self.metadata.coordinates = CoordinatesMetadata(
-                points=coordinates, system=coordinate_system
-            )
-        self.metadata.detection_origin = detection_origin
+            meta.coordinates = CoordinatesMetadata(points=coordinates, system=coordinate_system)
+        meta.detection_origin = detection_origin
+
+        self.metadata = meta
+        # -- all `Element` instances get a `text` attribute, defaults to the empty string if not
+        # -- defined in a subclass.
         # -- all `Element` instances get a `text` attribute, defaults to the empty string if not
         # -- defined in a subclass.
         self.text = self.text if hasattr(self, "text") else ""
@@ -1035,6 +1042,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
