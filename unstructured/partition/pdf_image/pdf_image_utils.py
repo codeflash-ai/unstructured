@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 
     from unstructured.documents.elements import Element
 
+_CID_PATTERN = re.compile(r"\(cid\:(\d+)\)")
+
+_MIN_CID_LENGTH = 7
+
 
 def write_image(image: Union[Image.Image, np.ndarray], output_image_path: str):
     """
@@ -312,17 +316,16 @@ def cid_ratio(text: str) -> float:
     """Gets ratio of unknown 'cid' characters extracted from text to all characters."""
     if not is_cid_present(text):
         return 0.0
-    cid_pattern = r"\(cid\:(\d+)\)"
-    unmatched, n_cid = re.subn(cid_pattern, "", text)
+    unmatched, n_cid = _CID_PATTERN.subn("", text)
     total = n_cid + len(unmatched)
     return n_cid / total
 
 
 def is_cid_present(text: str) -> bool:
     """Checks if a cid code is present in a text selection."""
-    if len(text) < len("(cid:x)"):
+    if len(text) < _MIN_CID_LENGTH:
         return False
-    return text.find("(cid:") != -1
+    return "(cid:" in text
 
 
 def annotate_layout_elements_with_image(
