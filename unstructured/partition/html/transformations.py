@@ -282,9 +282,18 @@ def parse_html_to_ontology(html_code: str) -> ontology.OntologyElement:
     Raises:
         ValueError: If no <body class="Document"> element is found in the HTML.
     """
-    html_code = remove_empty_divs_from_html_content(html_code)
-    html_code = remove_empty_tags_from_html_content(html_code)
     soup = BeautifulSoup(html_code, "html.parser")
+
+    # Remove empty divs and tags in place
+    divs = soup.find_all("div")
+    for div in reversed(divs):
+        if not div.attrs:
+            div.unwrap()
+
+    for tag in list(soup.find_all()):
+        if _is_empty_tag(tag):
+            tag.decompose()
+
     document = soup.find("body", class_="Document")
     if not document:
         document = soup.find("div", class_="Page")
@@ -367,15 +376,16 @@ def parse_html_to_ontology_element(soup: Tag, recursion_depth: int = 1) -> ontol
 
     if should_unwrap_html:
         text = ""
-        children = [
-            (
-                parse_html_to_ontology_element(child, recursion_depth=recursion_depth + 1)
-                if isinstance(child, Tag)
-                else ontology.Paragraph(text=str(child).strip())
-            )
-            for child in soup.children
-            if str(child).strip()
-        ]
+        children = []
+        for child in soup.children:
+            if isinstance(child, Tag):
+                children.append(
+                    parse_html_to_ontology_element(child, recursion_depth=recursion_depth + 1)
+                )
+            else:
+                child_text = str(child).strip()
+                if child_text:
+                    children.append(ontology.Paragraph(text=child_text))
     else:
         text = "\n".join([str(content).strip() for content in soup.contents]).strip()
         children = []
@@ -478,3 +488,18 @@ def get_escaped_attributes(soup: Tag) -> dict[str, str | list[str]]:
                 escaped_value = html.escape(value)
         escaped_attrs[escaped_key] = escaped_value
     return escaped_attrs
+
+
+def _is_empty_tag(tag: Tag) -> bool:
+    """Helper to check if a tag is empty and should be removed."""
+    # Remove only specific tags, omit self-closing ones
+    if tag.name not in ["p", "span", "div", "h1", "h2", "h3", "h4", "h5", "h6"]:
+        return False
+
+    if tag.find():
+        return False
+
+    if tag.attrs:
+        return False
+
+    return bool(not tag.get_text(strip=True))
