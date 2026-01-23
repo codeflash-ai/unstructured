@@ -60,7 +60,7 @@ class CoordinatesMetadata:
 
     def __init__(self, points: Optional[Points], system: Optional[CoordinateSystem]):
         # Both `points` and `system` must be present; one is not meaningful without the other.
-        if (points is None and system is not None) or (points is not None and system is None):
+        if (points is None) != (system is None):
             raise ValueError(
                 "Coordinates points should not exist without coordinates system and vice versa.",
             )
@@ -70,12 +70,9 @@ class CoordinatesMetadata:
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CoordinatesMetadata):
             return False
-        return all(
-            [
-                (self.points == other.points),
-                (self.system == other.system),
-            ],
-        )
+        if other is self:
+            return True
+        return (self.points == other.points) and (self.system == other.system)
 
     def to_dict(self):
         return {
@@ -1035,6 +1032,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
