@@ -11,7 +11,7 @@ import pathlib
 import uuid
 from itertools import groupby
 from types import MappingProxyType
-from typing import Any, Callable, FrozenSet, Optional, Sequence, cast
+from typing import Any, Callable, FrozenSet, Optional, cast
 
 from typing_extensions import ParamSpec, TypeAlias, TypedDict
 
@@ -87,41 +87,31 @@ class CoordinatesMetadata:
 
     @classmethod
     def from_dict(cls, input_dict: dict[str, Any]):
-        # `input_dict` may contain a tuple of tuples or a list of lists
-        def convert_to_points(sequence_of_sequences: Sequence[Sequence[float]]) -> Points:
-            points: list[Point] = []
-            for seq in sequence_of_sequences:
-                if isinstance(seq, list):
-                    points.append(cast(Point, tuple(seq)))
-                elif isinstance(seq, tuple):
-                    points.append(cast(Point, seq))
-            return tuple(points)
 
         # -- parse points --
         input_points = input_dict.get("points")
-        points = convert_to_points(input_points) if input_points is not None else None
+        if input_points is None:
+            points: Optional[Points] = None
+        else:
+            # Only accept inner sequences that are lists or tuples, and convert them to tuples.
+            # Create the final tuple-of-tuples directly to avoid an intermediate list.
+            points = tuple(tuple(seq) for seq in input_points if isinstance(seq, (list, tuple)))
+
+        # -- parse system --
 
         # -- parse system --
         system_name = input_dict.get("system")
         width = input_dict.get("layout_width")
         height = input_dict.get("layout_height")
-        system = (
-            None
-            if system_name is None
-            else (
-                RelativeCoordinateSystem()
-                if system_name == "RelativeCoordinateSystem"
-                else (
-                    TYPE_TO_COORDINATE_SYSTEM_MAP[system_name](width, height)
-                    if (
-                        width is not None
-                        and height is not None
-                        and system_name in TYPE_TO_COORDINATE_SYSTEM_MAP
-                    )
-                    else None
-                )
-            )
-        )
+
+        system: Optional[CoordinateSystem] = None
+        if system_name is not None:
+            if system_name == "RelativeCoordinateSystem":
+                system = RelativeCoordinateSystem()
+            else:
+                mapping = TYPE_TO_COORDINATE_SYSTEM_MAP
+                if (system_name in mapping) and (width is not None) and (height is not None):
+                    system = mapping[system_name](width, height)
 
         return cls(points=points, system=system)
 
