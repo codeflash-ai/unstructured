@@ -338,7 +338,15 @@ def exactly_one(**kwargs: Any) -> None:
     Example:
         >>> exactly_one(filename=filename, file=file, text=text, url=url)
     """
-    if sum([(arg is not None and arg != "") for arg in kwargs.values()]) != 1:
+    # Count non-None, non-empty arguments directly without creating intermediate list
+    count = 0
+    for arg in kwargs.values():
+        if arg is not None and arg != "":
+            count += 1
+            if count > 1:  # Early exit if we already have more than one
+                break
+
+    if count != 1:
         names = list(kwargs.keys())
         if len(names) > 1:
             message = f"Exactly one of {', '.join(names[:-1])} and {names[-1]} must be specified."

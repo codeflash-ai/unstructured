@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from io import BytesIO
-from typing import IO, Any, Iterator, cast
+from typing import IO, Any, Iterator
 
 from lxml import etree
 
@@ -96,7 +96,8 @@ def get_leaf_elements(
     elif file:
         return _get_leaf_elements(file=spooled_to_bytes_io_if_needed(file), xml_path=xml_path)
     else:
-        b = BytesIO(bytes(cast(str, text), encoding="utf-8"))
+        # Avoid unnecessary cast and create BytesIO directly from encoded text
+        b = BytesIO(text.encode("utf-8"))
         return _get_leaf_elements(b, xml_path=xml_path)
 
 
