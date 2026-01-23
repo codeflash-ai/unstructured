@@ -65,7 +65,12 @@ class ElementHtml(ABC):
         if soup is None:
             soup = BeautifulSoup("", HTML_PARSER)
 
-        element_html = self.get_text_as_html()
+        text_as_html = self.element.metadata.text_as_html
+        if text_as_html:
+            element_html = self.get_text_as_html()
+        else:
+            element_html = None
+
         if element_html is None:
             element_html = soup.new_tag(name=self.html_tag)
             self._inject_html_element_content(element_html, **kwargs)
