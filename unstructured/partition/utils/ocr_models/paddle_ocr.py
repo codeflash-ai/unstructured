@@ -60,8 +60,28 @@ class OCRAgentPaddle(OCRAgent):
         return paddle_ocr
 
     def get_text_from_image(self, image: PILImage.Image) -> str:
-        ocr_regions = self.get_layout_from_image(image)
-        return "\n\n".join(ocr_regions.texts)
+        # Fast path: extract cleaned text directly from the raw OCR output to avoid
+        # constructing TextRegion/TextRegions objects when only plain text is needed.
+        # The logic below mirrors the text extraction/cleaning performed in parse_data
+        # so the returned string is identical to the previous implementation.
+        ocr_data = self.agent.ocr(np.asarray(image), cls=True)
+        texts: list[str] = []
+        for idx in range(len(ocr_data)):
+            res = ocr_data[idx]
+            if not res:
+                continue
+
+            for line in res:
+                # Follow the same access pattern as parse_data from paddle_ocr.py:
+                # text = line[1][0]
+                text = line[1][0]
+                if not text:
+                    continue
+                cleaned_text = text.strip()
+                if cleaned_text:
+                    texts.append(cleaned_text)
+
+        return "\n\n".join(texts)
 
     def is_text_sorted(self):
         return False
