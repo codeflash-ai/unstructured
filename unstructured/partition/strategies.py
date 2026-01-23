@@ -4,6 +4,9 @@ from unstructured.logger import logger
 from unstructured.partition.utils.constants import PartitionStrategy
 from unstructured.utils import dependency_exists
 
+# Bind the chosen strategy at import time to avoid repeated attribute lookups.
+_IMAGE_AUTO_STRATEGY: PartitionStrategy = PartitionStrategy.HI_RES
+
 
 def validate_strategy(strategy: str, is_image: bool = False):
     """Determines if the strategy is valid for the specified filetype."""
@@ -88,7 +91,7 @@ def _determine_image_auto_strategy():
     """If "auto" is passed in as the strategy, determines what strategy to use
     for images."""
     # Use hi_res as the only default since images are only about one page
-    return PartitionStrategy.HI_RES
+    return _IMAGE_AUTO_STRATEGY
 
 
 def _determine_pdf_auto_strategy(
