@@ -78,11 +78,19 @@ class CoordinatesMetadata:
         )
 
     def to_dict(self):
+        system = self.system
+        if system is None:
+            return {
+                "points": self.points,
+                "system": None,
+                "layout_width": None,
+                "layout_height": None,
+            }
         return {
             "points": self.points,
-            "system": None if self.system is None else str(self.system.__class__.__name__),
-            "layout_width": None if self.system is None else self.system.width,
-            "layout_height": None if self.system is None else self.system.height,
+            "system": system.__class__.__name__,
+            "layout_width": system.width,
+            "layout_height": system.height,
         }
 
     @classmethod
@@ -1035,6 +1043,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
