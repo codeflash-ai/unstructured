@@ -9,6 +9,7 @@ import html
 from typing import TYPE_CHECKING, Iterator, Sequence, cast
 
 from lxml import etree
+from lxml.etree import strip_tags
 from lxml.html import fragment_fromstring
 
 from unstructured.utils import lazyproperty
@@ -65,9 +66,7 @@ class HtmlTable:
         table = tables[0]
 
         # -- remove `<thead>`, `<tbody>`, and `<tfoot>` noise elements when present --
-        noise_elements = table.xpath(".//thead | .//tbody | .//tfoot")
-        for e in noise_elements:
-            e.drop_tag()
+        strip_tags(table, "thead", "tbody", "tfoot")
 
         # -- normalize and compactify the HTML --
         for e in table.iter():
