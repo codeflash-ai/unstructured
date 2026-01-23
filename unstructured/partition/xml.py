@@ -71,16 +71,19 @@ def partition_xml(
         elements = [Text(text=raw_text, metadata=metadata)]
 
     else:
-        leaf_elements = get_leaf_elements(
-            filename=filename,
-            file=file,
-            text=text,
-            xml_path=xml_path,
-        )
+        # Prepare the file/text input for XML parsing
+        if filename:
+            xml_input = filename
+        elif file:
+            xml_input = spooled_to_bytes_io_if_needed(file)
+        else:
+            xml_input = BytesIO(bytes(cast(str, text), encoding="utf-8"))
+
+        leaf_elements = _get_leaf_elements(xml_input, xml_path=xml_path)
         for leaf_element in leaf_elements:
             if leaf_element:
                 element = element_from_text(leaf_element)
-                element.metadata = copy.deepcopy(metadata)
+                element.metadata = copy.copy(metadata)
                 elements.append(element)
 
     return elements
