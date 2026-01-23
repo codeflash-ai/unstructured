@@ -322,20 +322,31 @@ class ObjectDetectionEvalProcessor:
             iou:    Tensor of shape [N, M]: the NxM matrix containing the pairwise IoU values
                     for every element in boxes1 and boxes2
         """
+        # Handle empty inputs quickly to avoid unnecessary allocations
+        if box1.numel() == 0 or box2.numel() == 0:
+            return torch.zeros((box1.shape[0], box2.shape[0]), device=box1.device, dtype=box1.dtype)
 
-        def box_area(box):
-            # box = 4xn
-            return (box[2] - box[0]) * (box[3] - box[1])
+        # Unpack coordinates to avoid transposes and reduce temporary tensors
+        x1 = box1[:, 0]
+        y1 = box1[:, 1]
+        x2 = box1[:, 2]
+        y2 = box1[:, 3]
 
-        area1 = box_area(box1.T)
-        area2 = box_area(box2.T)
+        x1b = box2[:, 0]
+        y1b = box2[:, 1]
+        x2b = box2[:, 2]
+        y2b = box2[:, 3]
 
-        # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
-        inter = (
-            (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2]))
-            .clamp(0)
-            .prod(2)
-        )
+        # Areas of each box
+        area1 = (x2 - x1) * (y2 - y1)
+        area2 = (x2b - x1b) * (y2b - y1b)
+
+        # Intersection width and height via broadcasting; clamp negatives to zero
+        inter_w = (torch.min(x2[:, None], x2b) - torch.max(x1[:, None], x1b)).clamp(min=0)
+        inter_h = (torch.min(y2[:, None], y2b) - torch.max(y1[:, None], y1b)).clamp(min=0)
+
+        inter = inter_w * inter_h
+
         return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
 
     def _compute_targets(
