@@ -52,8 +52,9 @@ class OCRAgentTesseract(OCRAgent):
 
         trace_logger.detail("Processing entire page OCR with tesseract...")
         zoom = 1
+        image_array = np.array(image)
         ocr_df: pd.DataFrame = self.image_to_data_with_character_confidence_filter(
-            np.array(image),
+            image_array,
             lang=self.language,
             character_confidence_threshold=env_config.TESSERACT_CHARACTER_CONFIDENCE_THRESHOLD,
         )
@@ -81,8 +82,9 @@ class OCRAgentTesseract(OCRAgent):
                 np.round(env_config.TESSERACT_OPTIMUM_TEXT_HEIGHT / text_height, 1),
                 max_zoom,
             )
+            zoomed_image = zoom_image_array(image_array, zoom)
             ocr_df = self.image_to_data_with_character_confidence_filter(
-                np.array(zoom_image(image, zoom)),
+                zoomed_image,
                 lang=self.language,
                 character_confidence_threshold=env_config.TESSERACT_CHARACTER_CONFIDENCE_THRESHOLD,
             )
@@ -231,9 +233,11 @@ class OCRAgentTesseract(OCRAgent):
         ).values
         mask = texts != ""
         element_coords = ocr_data[["left", "top", "width", "height"]].values
+        element_coords = element_coords.astype(float)
         element_coords[:, 2] += element_coords[:, 0]
         element_coords[:, 3] += element_coords[:, 1]
-        element_coords = element_coords.astype(float) / zoom
+        element_coords = element_coords / zoom
+        # Use np.array([Source.OCR_TESSERACT] * mask.sum()) to match original dtype behavior
         return TextRegions(
             element_coords=element_coords[mask],
             texts=texts[mask],
@@ -258,3 +262,17 @@ def zoom_image(image: PILImage.Image, zoom: float = 1) -> PILImage.Image:
     # Skip dilation and erosion for 1x1 kernel as they are no-ops
 
     return PILImage.fromarray(new_image)
+
+
+def zoom_image_array(image_array: np.ndarray, zoom: float = 1) -> np.ndarray:
+    """scale an image array based on the zoom factor using cv2"""
+    if zoom <= 0:
+        zoom = 1
+    new_image = cv2.resize(
+        cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR),
+        None,
+        fx=zoom,
+        fy=zoom,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    return new_image
