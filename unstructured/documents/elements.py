@@ -861,10 +861,12 @@ class Text(Element):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-compatible (str keys) dict."""
-        out = super().to_dict()
-        out["element_id"] = self.id
-        out["type"] = self.category
-        out["text"] = self.text
+        out: dict[str, Any] = {
+            "element_id": self.id,
+            "type": self.category,
+            "text": self.text,
+            "metadata": self.metadata.to_dict(),
+        }
         if self.embeddings:
             out["embeddings"] = self.embeddings
         return out
@@ -1035,6 +1037,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
