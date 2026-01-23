@@ -5,7 +5,7 @@ import os
 import re
 import tempfile
 import unicodedata
-from copy import deepcopy
+from copy import copy
 from io import BytesIO
 from pathlib import Path, PurePath
 from typing import IO, TYPE_CHECKING, BinaryIO, Iterator, List, Optional, Tuple, Union, cast
@@ -136,11 +136,13 @@ def pad_element_bboxes(
     """Increases (or decreases, if padding is negative) the size of the bounding
     boxes of the element by extending the boundary outward (resp. inward)"""
 
-    out_element = deepcopy(element)
-    out_element.bbox.x1 -= padding
-    out_element.bbox.x2 += padding
-    out_element.bbox.y1 -= padding
-    out_element.bbox.y2 += padding
+    out_element = copy(element)
+    bbox = copy(element.bbox)
+    bbox.x1 -= padding
+    bbox.x2 += padding
+    bbox.y1 -= padding
+    bbox.y2 += padding
+    out_element.bbox = bbox
 
     return out_element
 
