@@ -153,11 +153,22 @@ def is_possible_title(
     # NOTE(robinson) - The min length is to capture content such as "ITEM 1A. RISK FACTORS"
     # that sometimes get tokenized as separate sentences due to the period, but are still
     # valid titles
-    if sentence_count(text, min_length=sentence_min_length) > 1:
-        trace_logger.detail(  # type: ignore
-            f"Not a title. Text is longer than {sentence_min_length} sentences:\n\n{text}",
-        )
-        return False
+    # Fast pre-check: if there are no obvious sentence terminators, it cannot be >1 sentence.
+    if (
+        "." not in text
+        and "!" not in text
+        and "?" not in text
+        and "\n" not in text
+        and "\r" not in text
+    ):
+        # No sentence terminators present, so cannot have more than one sentence.
+        pass
+    else:
+        if sentence_count(text, min_length=sentence_min_length) > 1:
+            trace_logger.detail(  # type: ignore
+                f"Not a title. Text is longer than {sentence_min_length} sentences:\n\n{text}",
+            )
+            return False
 
     return True
 
@@ -254,13 +265,16 @@ def under_non_alpha_ratio(text: str, threshold: float = 0.5):
     if not text:
         return False
 
+    # Remove whitespace using C-level join on split to avoid Python-level per-character isspace checks.
+    compact = "".join(text.split())
+    total_count = len(compact)
+    if total_count == 0:
+        return False
+
     alpha_count = 0
-    total_count = 0
-    for char in text:
-        if not char.isspace():
-            total_count += 1
-            if char.isalpha():
-                alpha_count += 1
+    for ch in compact:
+        if ch.isalpha():
+            alpha_count += 1
 
     return ((alpha_count / total_count) < threshold) if total_count > 0 else False
 
