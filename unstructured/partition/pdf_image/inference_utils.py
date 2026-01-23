@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -52,22 +53,37 @@ def build_layout_elements_from_ocr_regions(
     grouped_regions = []
     if group_by_ocr_text:
         text_sections = ocr_text.split("\n\n")
-        mask = np.ones(ocr_regions.texts.shape).astype(bool)
-        indices = np.arange(len(mask))
+        # Build mapping from text -> deque(indices) once (preserves OCR order)
+        index_map: dict = defaultdict(deque)
+        texts = ocr_regions.texts
+        for idx, txt in enumerate(texts):
+            index_map[txt].append(idx)
+
         for text_section in text_sections:
             regions = []
             words = text_section.replace("\n", " ").split()
-            for i, text in enumerate(ocr_regions.texts[mask]):
-                if not words:
-                    break
-                if text in words:
-                    regions.append(indices[mask][i])
-                    words.remove(text)
+            if not words:
+                continue
+
+            # For each word, take the earliest available OCR index (if any).
+            # We pop from the deque to ensure indices are not reused across sections.
+            remaining = len(words)
+            for w in words:
+                dq = index_map.get(w)
+                if dq:
+                    regions.append(dq.popleft())
+                    remaining -= 1
+                    if not dq:
+                        # remove empty deque to keep map small
+                        index_map.pop(w, None)
+                    if remaining == 0:
+                        break
 
             if not regions:
                 continue
 
-            mask[regions] = False
+            # Ensure regions are in OCR order (original algorithm preserved OCR scan order)
+            regions.sort()
             grouped_regions.append(ocr_regions.slice(regions))
     else:
         grouped_regions = partition_groups_from_regions(ocr_regions)
@@ -96,12 +112,13 @@ def merge_text_regions(regions: TextRegions) -> TextRegion:
     if not regions:
         raise ValueError("The text regions to be merged must be provided.")
 
-    min_x1 = regions.x1.min().astype(float)
-    min_y1 = regions.y1.min().astype(float)
-    max_x2 = regions.x2.max().astype(float)
-    max_y2 = regions.y2.max().astype(float)
+    min_x1 = float(regions.x1.min())
+    min_y1 = float(regions.y1.min())
+    max_x2 = float(regions.x2.max())
+    max_y2 = float(regions.y2.max())
 
-    merged_text = " ".join([text for text in regions.texts if text])
+    merged_text = " ".join(t for t in regions.texts if t)
+    # assumption is the regions has the same source
     # assumption is the regions has the same source
     source = regions.sources[0]
 
