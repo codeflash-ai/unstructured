@@ -1265,26 +1265,19 @@ def is_on_next_page() -> BoundaryPredicate:
     An element with `page_number == None` or a page-number lower than the stored value is ignored
     and returns False.
     """
-    current_page_number: int = 1
-    is_first: bool = True
+    current_page_number: int = 0
 
     def page_number_incremented(element: Element) -> bool:
-        nonlocal current_page_number, is_first
+        nonlocal current_page_number
 
         page_number = element.metadata.page_number
-
-        # -- The first element never reports a page break, it starts the first page of the
-        # -- document. That page could be numbered (page_number is non-None) or not. If it is not
-        # -- numbered we assign it page-number 1.
-        if is_first:
-            current_page_number = page_number or 1
-            is_first = False
-            return False
 
         # -- An element with a `None` page-number is assumed to continue the current page. It never
         # -- updates the current-page-number because once set, the current-page-number is "sticky"
         # -- until replaced by a different explicit page-number.
         if page_number is None:
+            if current_page_number == 0:
+                current_page_number = 1
             return False
 
         if page_number == current_page_number:
@@ -1292,8 +1285,13 @@ def is_on_next_page() -> BoundaryPredicate:
 
         # -- it's possible for a page-number to decrease. We don't expect that, but if it happens
         # -- we consider it a page-break.
+
+        # -- it's possible for a page-number to decrease. We don't expect that, but if it happens
+        # -- we consider it a page-break.
+        # -- The first element with an explicit page_number also enters here, setting the initial page.
+        has_page_break = current_page_number != 0
         current_page_number = page_number
-        return True
+        return has_page_break
 
     return page_number_incremented
 
