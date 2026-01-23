@@ -788,11 +788,9 @@ class CheckBox(Element):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, CheckBox):
             return False
-        return all(
-            (
-                self.checked == other.checked,
-                self.metadata.coordinates == other.metadata.coordinates,
-            )
+        return (
+            self.checked == other.checked
+            and self.metadata.coordinates == other.metadata.coordinates
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1035,6 +1033,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
