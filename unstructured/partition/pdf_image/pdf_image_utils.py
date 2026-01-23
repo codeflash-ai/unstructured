@@ -478,5 +478,8 @@ def remove_control_characters(text: str) -> str:
     # Replace newline character with a space
     text = text.replace("\t", " ").replace("\n", " ")
     # Remove other control characters
-    out_text = "".join(c for c in text if unicodedata.category(c)[0] != "C")
+    # Build a translation mapping only for unique characters that are in category 'C'
+    unique_chars = set(text)
+    remap = {ord(c): None for c in unique_chars if unicodedata.category(c)[0] == "C"}
+    out_text = text if not remap else text.translate(remap)
     return out_text
