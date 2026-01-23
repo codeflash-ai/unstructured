@@ -279,7 +279,10 @@ def _elements_to_html_tags_by_page(
     grouped_elements = group_elements_by_page(elements)
     for page, g_elements in enumerate(grouped_elements, start=1):
         page_html = soup.new_tag(name="div", attrs={"data-page_number": page})
-        elements_html = _elements_to_html_tags(g_elements, exclude_binary_image_data)
+        # Use the helper that reuses the same soup to avoid creating multiple BeautifulSoup instances
+        elements_html = _elements_to_html_tags_with_soup(
+            g_elements, exclude_binary_image_data, soup
+        )
         for element_html in elements_html:
             page_html.append(element_html)
         pages_tags.append(page_html)
@@ -318,3 +321,25 @@ def elements_to_html(
     for element_html in elements_html:
         soup.body.append(element_html)
     return soup.prettify()
+
+
+def _elements_to_html_tags_with_soup(
+    elements: list[Element], exclude_binary_image_data: bool, soup: BeautifulSoup
+) -> list[Tag]:
+    """
+    Helper that converts Element objects to bs4.Tag objects, reusing the provided
+    BeautifulSoup instance to avoid repeated parser allocations.
+    """
+    # Map Elements to their HTML wrapper objects
+    element_objs = [
+        TYPE_TO_HTML_MAP.get(element.category, ElementHtml)(element) for element in elements
+    ]
+    # Attach children where necessary
+    element_objs = _elements_to_html_tags_by_parent(element_objs)
+    # Convert each ElementHtml to a Tag using the shared soup
+    return [
+        element_html.get_html_element(
+            exclude_binary_image_data=exclude_binary_image_data, _soup=soup
+        )
+        for element_html in element_objs
+    ]
