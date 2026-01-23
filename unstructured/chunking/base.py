@@ -439,6 +439,8 @@ class PreChunk:
         self._overlap_prefix = overlap_prefix
         self._opts = opts
 
+        self._text_length: int | None = None
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, PreChunk):
             return False
@@ -446,7 +448,11 @@ class PreChunk:
 
     def can_combine(self, pre_chunk: PreChunk) -> bool:
         """True when `pre_chunk` can be combined with this one without exceeding size limits."""
-        if len(self._text) >= self._opts.combine_text_under_n_chars:
+        # -- cache text length to avoid repeated len() calls on lazyproperty --
+        if self._text_length is None:
+            self._text_length = len(self._text)
+
+        if self._text_length >= self._opts.combine_text_under_n_chars:
             return False
         # -- avoid duplicating length computations by doing a trial-combine which is just as
         # -- efficient and definitely more robust than hoping two different computations of combined
