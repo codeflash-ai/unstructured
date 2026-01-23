@@ -173,7 +173,7 @@ class RadioCheckedElementHtml(InputElementHtml):
         element_html["checked"] = "true"
 
 
-LIST_ELEMENTS = [ElementType.LIST_ITEM, ElementType.LIST_ITEM_OTHER]
+LIST_ELEMENTS = frozenset([ElementType.LIST_ITEM, ElementType.LIST_ITEM_OTHER])
 
 TYPE_TO_HTML_MAP = {
     ElementType.UNCATEGORIZED_TEXT: TextElementHtml,
@@ -227,19 +227,24 @@ def _group_element_children(children: list[ElementHtml]) -> list[ElementHtml]:
     grouped_children: list[ElementHtml] = []
     temp_group: list["ElementHtml"] = []
     prev_grouping = False
+    placeholder_element: Optional[Element] = None
     for child in children:
         grouping = child.element.category in LIST_ELEMENTS
         if grouping:
             temp_group.append(child)
         elif prev_grouping:
-            grouped_children.append(OrderedListElementHtml(Element(), temp_group))
+            if placeholder_element is None:
+                placeholder_element = Element()
+            grouped_children.append(OrderedListElementHtml(placeholder_element, temp_group))
             grouped_children.append(child)
             temp_group = []
         else:
             grouped_children.append(child)
         prev_grouping = grouping
     if temp_group:
-        grouped_children.append(OrderedListElementHtml(Element(), temp_group))
+        if placeholder_element is None:
+            placeholder_element = Element()
+        grouped_children.append(OrderedListElementHtml(placeholder_element, temp_group))
     return grouped_children
 
 
