@@ -608,9 +608,8 @@ class ObjectDetectionEvalProcessor:
         nb_iou_thrs = preds_matched.shape[-1]
 
         tps = preds_matched
-        fps = torch.logical_and(
-            torch.logical_not(preds_matched), torch.logical_not(preds_to_ignore)
-        )
+        # Use bitwise boolean ops to avoid extra logical_* allocations
+        fps = (~preds_matched) & (~preds_to_ignore)
 
         if len(tps) == 0:
             return (
@@ -654,6 +653,9 @@ class ObjectDetectionEvalProcessor:
             -preds_scores, -score_threshold, right=True
         )
 
+        # Convert to Python int to avoid tensor-boolean truth checks and repeated tensor ops
+        lowest_score_above_threshold = int(lowest_score_above_threshold.item())
+
         if (
             lowest_score_above_threshold == 0
         ):  # Here score_threshold > preds_scores[0], so no pred is above the threshold
@@ -669,7 +671,14 @@ class ObjectDetectionEvalProcessor:
         # AVERAGE PRECISION
 
         # shape = (nb_iou_thrs, n_recall_thresholds)
-        recall_thresholds = recall_thresholds.view(1, -1).repeat(nb_iou_thrs, 1)
+        # Use expand to avoid allocating repeated memory
+        recall_thresholds = recall_thresholds.view(1, -1).expand(nb_iou_thrs, -1)
+
+        # We want the index i so that:
+        # rolling_recalls[i-1] < recall_thresholds[k] <= rolling_recalls[i]
+        # Note:  when recall_thresholds[k] > max(rolling_recalls), i = len(rolling_recalls)
+        # Note2: we work with transpose (.T) to apply torch.searchsorted on first dim
+        # instead of the last one
 
         # We want the index i so that:
         # rolling_recalls[i-1] < recall_thresholds[k] <= rolling_recalls[i]
