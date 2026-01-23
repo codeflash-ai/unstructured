@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from unstructured_inference.inference.elements import TextRegions
     from unstructured_inference.inference.layoutelement import LayoutElements
 
+_RE_BBOX = re.compile(r"bbox (\d+) (\d+) (\d+) (\d+)")
+
 _RE_X_CONF = re.compile(r"x_conf (\d+\.\d+)")
 
 # -- force tesseract to be single threaded, otherwise we see major performance problems --
@@ -118,26 +120,44 @@ class OCRAgentTesseract(OCRAgent):
         root = etree.fromstring(hocr)
         word_spans = root.findall('.//h:span[@class="ocrx_word"]', self.hocr_namespace)
 
+        # use parallel lists to reduce per-entry dict allocations
+        lefts: list[int] = []
+        tops: list[int] = []
+        rights: list[int] = []
+        bottoms: list[int] = []
+        texts: list[str] = []
+
         for word_span in word_spans:
             word_title = word_span.get("title", "")
-            bbox_match = re.search(r"bbox (\d+) (\d+) (\d+) (\d+)", word_title)
+            bbox_match = _RE_BBOX.search(word_title)
 
             text = self.extract_word_from_hocr(
                 word=word_span, character_confidence_threshold=character_confidence_threshold
             )
             if text and bbox_match:
-                word_bbox = list(map(int, bbox_match.groups()))
-                left, top, right, bottom = word_bbox
-                df_entries.append(
-                    {
-                        "left": left,
-                        "top": top,
-                        "right": right,
-                        "bottom": bottom,
-                        "text": text,
-                    }
-                )
-        ocr_df = pd.DataFrame(df_entries, columns=["left", "top", "right", "bottom", "text"])
+                l, t, r, b = map(int, bbox_match.groups())
+                lefts.append(l)
+                tops.append(t)
+                rights.append(r)
+                bottoms.append(b)
+                texts.append(text)
+
+        # If no valid entries were found but HOCR was present, preserve original code's final
+        # column ordering and return an empty DataFrame with those columns.
+        if not lefts:
+            return pd.DataFrame(columns=["left", "top", "text", "width", "height"])
+
+        # Build DataFrame with the same intermediate column ordering as the original implementation
+        ocr_df = pd.DataFrame(
+            {
+                "left": lefts,
+                "top": tops,
+                "right": rights,
+                "bottom": bottoms,
+                "text": texts,
+            },
+            columns=["left", "top", "right", "bottom", "text"],
+        )
 
         ocr_df["width"] = ocr_df["right"] - ocr_df["left"]
         ocr_df["height"] = ocr_df["bottom"] - ocr_df["top"]
