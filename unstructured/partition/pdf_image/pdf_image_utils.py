@@ -153,12 +153,8 @@ def pad_bbox(
 
     x1, y1, x2, y2 = bbox
     h_padding, v_padding = padding
-    x1 -= h_padding
-    x2 += h_padding
-    y1 -= v_padding
-    y2 += v_padding
 
-    return x1, y1, x2, y2
+    return x1 - h_padding, y1 - v_padding, x2 + h_padding, y2 + v_padding
 
 
 def save_elements(
