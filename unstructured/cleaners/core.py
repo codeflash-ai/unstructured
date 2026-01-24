@@ -202,12 +202,7 @@ def new_line_grouper(
     Iwan Roberts\n\nRoberts celebrating after scoring a goal for Norwich City\n\nin 2004
     """
     paragraphs = paragraph_split.split(text)
-    clean_paragraphs = []
-    for paragraph in paragraphs:
-        if not paragraph.strip():
-            continue
-        clean_paragraphs.append(paragraph)
-    return "\n\n".join(clean_paragraphs)
+    return "\n\n".join(filter(str.strip, paragraphs))
 
 
 def blank_line_grouper(
