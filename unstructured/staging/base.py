@@ -491,38 +491,43 @@ def convert_to_coco(
 
     coco_dataset: dict[str, Any] = {}
     # Handle Info
+    # Handle Info
+    now = datetime.now()
     coco_dataset["info"] = {
         "description": (
             dataset_description
             if dataset_description
-            else f"Unstructured COCO Dataset {datetime.now().strftime('%Y-%m-%d')}"
+            else f"Unstructured COCO Dataset {now.strftime('%Y-%m-%d')}"
         ),
         "version": dataset_version,
-        "year": datetime.now().year,
+        "year": now.year,
         "contributors": ",".join(contributors),
-        "date_created": datetime.now().date().isoformat(),
+        "date_created": now.date().isoformat(),
     }
     element_dicts = elements_to_dicts(elements)
     # Handle Images
-    images = [
-        {
-            "width": (
-                el["metadata"]["coordinates"]["layout_width"]
-                if el["metadata"].get("coordinates")
-                else None
-            ),
-            "height": (
-                el["metadata"]["coordinates"]["layout_height"]
-                if el["metadata"].get("coordinates")
-                else None
-            ),
-            "file_directory": el["metadata"].get("file_directory", ""),
-            "file_name": el["metadata"].get("filename", ""),
-            "page_number": el["metadata"].get("page_number", ""),
-        }
-        for el in element_dicts
-    ]
-    images = list({tuple(sorted(d.items())): d for d in images}.values())
+    images = []
+    for el in element_dicts:
+        coords = el["metadata"].get("coordinates")
+        width = coords["layout_width"] if coords else None
+        height = coords["layout_height"] if coords else None
+        images.append(
+            {
+                "width": width,
+                "height": height,
+                "file_directory": el["metadata"].get("file_directory", ""),
+                "file_name": el["metadata"].get("filename", ""),
+                "page_number": el["metadata"].get("page_number", ""),
+            }
+        )
+    # Deduplicate while preserving the insertion order of first occurrences
+    unique = {}
+    for d in images:
+        key = (d["width"], d["height"], d["file_directory"], d["file_name"], d["page_number"])
+        unique.setdefault(key, d)
+        # Ensure the value is the last seen one for this key, matching original behavior
+        unique[key] = d
+    images = list(unique.values())
     for index, d in enumerate(images):
         d["id"] = index + 1
     coco_dataset["images"] = images
@@ -530,51 +535,34 @@ def convert_to_coco(
     categories = sorted(set(TYPE_TO_TEXT_ELEMENT_MAP.keys()))
     categories = [{"id": i + 1, "name": cat} for i, cat in enumerate(categories)]
     coco_dataset["categories"] = categories
+    name_to_id = {c["name"]: c["id"] for c in categories}
     # Handle Annotations
-    annotations = [
-        {
-            "id": el["element_id"],
-            "category_id": [x["id"] for x in categories if x["name"] == el["type"]][0],
-            "bbox": (
-                [
-                    float(el["metadata"].get("coordinates")["points"][0][0]),
-                    float(el["metadata"].get("coordinates")["points"][0][1]),
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][0]
-                            - el["metadata"].get("coordinates")["points"][2][0]
-                        )
-                    ),
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][1]
-                            - el["metadata"].get("coordinates")["points"][1][1]
-                        )
-                    ),
-                ]
-                if el["metadata"].get("coordinates")
-                else []
-            ),
-            "area": (
-                (
-                    float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][0]
-                            - el["metadata"].get("coordinates")["points"][2][0]
-                        )
-                    )
-                    * float(
-                        abs(
-                            el["metadata"].get("coordinates")["points"][0][1]
-                            - el["metadata"].get("coordinates")["points"][1][1]
-                        )
-                    )
-                )
-                if el["metadata"].get("coordinates")
-                else None
-            ),
-        }
-        for el in element_dicts
-    ]
+    annotations = []
+    for el in element_dicts:
+        coords = el["metadata"].get("coordinates")
+        if coords:
+            points = coords["points"]
+            x0 = float(points[0][0])
+            y0 = float(points[0][1])
+            w = float(abs(points[0][0] - points[2][0]))
+            h = float(abs(points[0][1] - points[1][1]))
+            bbox = [x0, y0, w, h]
+            area = w * h
+        else:
+            bbox = []
+            area = None
+        # Preserve original exception behavior: raise IndexError if category not found
+        try:
+            cat_id = name_to_id[el["type"]]
+        except KeyError:
+            raise IndexError
+        annotations.append(
+            {
+                "id": el["element_id"],
+                "category_id": cat_id,
+                "bbox": bbox,
+                "area": area,
+            }
+        )
     coco_dataset["annotations"] = annotations
     return coco_dataset
