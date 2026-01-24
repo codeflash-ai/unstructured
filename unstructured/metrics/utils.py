@@ -182,7 +182,21 @@ def _mean(scores: Union[pd.Series, List[float]], rounding: Optional[int] = 3) ->
     """
     if len(scores) == 0:
         return None
-    mean = statistics.mean(scores)
+    if isinstance(scores, pd.Series):
+        mean = scores.mean(skipna=False)
+        # Convert numpy scalar to Python native type
+        if hasattr(mean, "item"):
+            mean = mean.item()
+    else:
+        total = sum(scores)
+        mean = total / len(scores)
+        # Preserve int type if all inputs are ints and result is whole number
+        if (
+            all(isinstance(x, int) for x in scores)
+            and isinstance(total, int)
+            and total % len(scores) == 0
+        ):
+            mean = int(mean)
     if not rounding:
         return mean
     return round(mean, rounding)
