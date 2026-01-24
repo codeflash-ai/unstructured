@@ -378,7 +378,43 @@ def clean_prefix(text: str, pattern: str, ignore_case: bool = False, strip: bool
     strip: If True, removes leading whitespace from the cleaned string.
     """
     flags = re.IGNORECASE if ignore_case else 0
-    clean_text = re.sub(rf"^{pattern}", "", text, flags=flags)
+
+    # Fast-path for empty pattern: behaves like re.sub(rf"^{pattern}", "", text)
+    if pattern == "":
+        clean_text = text
+        clean_text = clean_text.lstrip() if strip else clean_text
+        return clean_text
+
+    # Detect if pattern contains common regex metacharacters. If not, treat as literal.
+    # This preserves behavior for patterns that are intended as regexes while allowing
+    # a much faster literal-prefix removal for the common case.
+    _regex_specials = set(".^$*+?{}[]\\|()")
+    is_literal = True
+    for ch in pattern:
+        if ch in _regex_specials:
+            is_literal = False
+            break
+
+    if is_literal:
+        plen = len(pattern)
+        if ignore_case:
+            # Use casefold for better Unicode case-insensitive matching similar to re.IGNORECASE
+            p_cf = pattern.casefold()
+            if text[:plen].casefold() == p_cf:
+                clean_text = text[plen:]
+            else:
+                clean_text = text
+        else:
+            if text.startswith(pattern):
+                clean_text = text[plen:]
+            else:
+                clean_text = text
+    else:
+        # Fallback to compiled regex for true regex patterns (compile once)
+        compiled = re.compile("^" + pattern, flags=flags)
+        # Only the start-anchored match can occur, so limiting count to 1 matches original behavior
+        clean_text = compiled.sub("", text, count=1)
+
     clean_text = clean_text.lstrip() if strip else clean_text
     return clean_text
 
