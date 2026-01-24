@@ -5,12 +5,12 @@ import os
 import re
 import tempfile
 import unicodedata
-from copy import deepcopy
 from io import BytesIO
 from pathlib import Path, PurePath
 from typing import IO, TYPE_CHECKING, BinaryIO, Iterator, List, Optional, Tuple, Union, cast
 
 import cv2
+import numba
 import numpy as np
 import pdf2image
 import pypdfium2 as pdfium
@@ -136,11 +136,28 @@ def pad_element_bboxes(
     """Increases (or decreases, if padding is negative) the size of the bounding
     boxes of the element by extending the boundary outward (resp. inward)"""
 
-    out_element = deepcopy(element)
-    out_element.bbox.x1 -= padding
-    out_element.bbox.x2 += padding
-    out_element.bbox.y1 -= padding
-    out_element.bbox.y2 += padding
+    # Avoid deepcopy; create a new LayoutElement with updated bbox only, copying all other fields.
+    bbox = element.bbox
+
+    new_x1, new_x2, new_y1, new_y2 = _pad_bbox_numba(
+        bbox.x1, bbox.x2, bbox.y1, bbox.y2, float(padding)
+    )
+
+    # Create a shallow copy of the bbox if possible, or instantiate directly
+    new_bbox = type(bbox)(
+        x1=new_x1,
+        y1=new_y1,
+        x2=new_x2,
+        y2=new_y2,
+        # Copy remaining attributes if present (assuming LayoutElement.bbox may have more attrs)
+        **{key: getattr(bbox, key) for key in bbox.__dict__ if key not in ("x1", "x2", "y1", "y2")},
+    )
+
+    # Create a new LayoutElement with the same values, replacing bbox only
+    # Use __class__ and __dict__ copying rather than deepcopy for speed
+    out_element = type(element).__new__(type(element))
+    out_element.__dict__.update(element.__dict__)
+    out_element.bbox = new_bbox
 
     return out_element
 
@@ -480,3 +497,9 @@ def remove_control_characters(text: str) -> str:
     # Remove other control characters
     out_text = "".join(c for c in text if unicodedata.category(c)[0] != "C")
     return out_text
+
+
+@numba.njit(cache=True)
+def _pad_bbox_numba(x1: float, x2: float, y1: float, y2: float, padding: float):
+    # Helper function to efficiently pad the bbox values
+    return x1 - padding, x2 + padding, y1 - padding, y2 + padding
