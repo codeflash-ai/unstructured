@@ -133,25 +133,28 @@ convert_to_dict = elements_to_dicts
 
 
 def element_to_md(element: Element, exclude_binary_image_data: bool = False) -> str:
-    match element:
-        case Title(text=text):
-            return f"# {text}"
-        case Table(metadata=metadata, text=text) if metadata.text_as_html is not None:
-            return metadata.text_as_html
-        case Image(metadata=metadata, text=text) if (
-            metadata.image_base64 is not None
-            and metadata.image_mime_type is None
-            and not exclude_binary_image_data
-        ):
-            return f"![{text}](data:image/*;base64,{metadata.image_base64})"
-        case Image(metadata=metadata, text=text) if (
-            metadata.image_base64 is not None and not exclude_binary_image_data
-        ):
-            return f"![{text}](data:{metadata.image_mime_type};base64,{metadata.image_base64})"
-        case Image(metadata=metadata, text=text) if metadata.image_url is not None:
+    if isinstance(element, Title):
+        return f"# {element.text}"
+
+    if isinstance(element, Table):
+        if element.metadata.text_as_html is not None:
+            return element.metadata.text_as_html
+        return element.text
+
+    if isinstance(element, Image):
+        metadata = element.metadata
+        text = element.text
+
+        if metadata.image_base64 is not None:
+            if metadata.image_mime_type is None and not exclude_binary_image_data:
+                return f"![{text}](data:image/*;base64,{metadata.image_base64})"
+            if not exclude_binary_image_data:
+                return f"![{text}](data:{metadata.image_mime_type};base64,{metadata.image_base64})"
+
+        if metadata.image_url is not None:
             return f"![{text}]({metadata.image_url})"
-        case _:
-            return element.text
+
+    return element.text
 
 
 def elements_to_md(
