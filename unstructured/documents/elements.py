@@ -1056,11 +1056,22 @@ def _kvform_pairs_to_dict(orig_kv_pairs: list[FormKeyValuePair]) -> list[dict[st
     e.g. when FormKeysValues.to_dict() is used.
 
     """
-    kv_pairs: list[dict[str, Any]] = copy.deepcopy(orig_kv_pairs)  # type: ignore
-    for kv_pair in kv_pairs:
-        if kv_pair["key"]["custom_element"] is not None:
-            kv_pair["key"]["custom_element"] = kv_pair["key"]["custom_element"].to_dict()
-        if kv_pair["value"] is not None and kv_pair["value"]["custom_element"] is not None:
-            kv_pair["value"]["custom_element"] = kv_pair["value"]["custom_element"].to_dict()
+    kv_pairs: list[dict[str, Any]] = []
+    for orig_kv_pair in orig_kv_pairs:
+        kv_pair = orig_kv_pair.copy()
+
+        # Handle key custom_element
+        key = orig_kv_pair["key"]
+        if key["custom_element"] is not None:
+            kv_pair["key"] = key.copy()
+            kv_pair["key"]["custom_element"] = key["custom_element"].to_dict()
+
+        # Handle value custom_element
+        value = orig_kv_pair.get("value")
+        if value is not None and value["custom_element"] is not None:
+            kv_pair["value"] = value.copy()
+            kv_pair["value"]["custom_element"] = value["custom_element"].to_dict()
+
+        kv_pairs.append(kv_pair)
 
     return kv_pairs
