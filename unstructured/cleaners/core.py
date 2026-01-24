@@ -21,6 +21,8 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+_DASH_TRANSLATION = str.maketrans({"-": " ", "\u2013": " "})
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -342,7 +344,10 @@ def clean_dashes(text: str) -> str:
     ITEM 1. -BUSINESS -> ITEM 1.  BUSINESS
     """
     # NOTE(Yuming): '\u2013' is the unicode string of 'EN DASH', a variation of "-"
-    return re.sub(r"[-\u2013]", " ", text).strip()
+    # Validate input type to match original behavior
+    if not isinstance(text, str):
+        raise TypeError("expected string or bytes-like object")
+    return text.translate(_DASH_TRANSLATION).strip()
 
 
 def clean_trailing_punctuation(text: str) -> str:
