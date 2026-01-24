@@ -43,7 +43,9 @@ def partition_epub(
     """
     exactly_one(filename=filename, file=file)
 
-    last_modified = get_last_modified_date(filename) if filename else None
+    last_modified = None
+    if filename and metadata_last_modified is None:
+        last_modified = get_last_modified_date(filename)
 
     html_text = convert_file_to_html_text_using_pandoc(
         source_format="epub",
