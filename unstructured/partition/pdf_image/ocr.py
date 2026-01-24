@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import IO, TYPE_CHECKING, Any, List, Optional, cast
+from typing import IO, TYPE_CHECKING, Any, List, Optional
 
 import numpy as np
 
@@ -170,31 +170,28 @@ def process_file_with_ocr(
                     merged_page_layouts.append(merged_page_layout)
                 return DocumentLayout.from_pages(merged_page_layouts)
         else:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                _image_paths = convert_pdf_to_image(
-                    filename,
-                    dpi=pdf_image_dpi,
-                    output_folder=temp_dir,
-                    path_only=True,
-                    password=password,
+            images = convert_pdf_to_image(
+                filename,
+                dpi=pdf_image_dpi,
+                output_folder=None,
+                path_only=False,
+                password=password,
+            )
+            for i, image in enumerate(images):
+                extracted_regions = extracted_layout[i] if i < len(extracted_layout) else None
+                merged_page_layout = supplement_page_layout_with_ocr(
+                    page_layout=out_layout.pages[i],
+                    image=image,
+                    infer_table_structure=infer_table_structure,
+                    ocr_agent=ocr_agent,
+                    ocr_languages=ocr_languages,
+                    ocr_mode=ocr_mode,
+                    extracted_regions=extracted_regions,
+                    ocr_layout_dumper=ocr_layout_dumper,
+                    table_ocr_agent=table_ocr_agent,
                 )
-                image_paths = cast(List[str], _image_paths)
-                for i, image_path in enumerate(image_paths):
-                    extracted_regions = extracted_layout[i] if i < len(extracted_layout) else None
-                    with PILImage.open(image_path) as image:
-                        merged_page_layout = supplement_page_layout_with_ocr(
-                            page_layout=out_layout.pages[i],
-                            image=image,
-                            infer_table_structure=infer_table_structure,
-                            ocr_agent=ocr_agent,
-                            ocr_languages=ocr_languages,
-                            ocr_mode=ocr_mode,
-                            extracted_regions=extracted_regions,
-                            ocr_layout_dumper=ocr_layout_dumper,
-                            table_ocr_agent=table_ocr_agent,
-                        )
-                        merged_page_layouts.append(merged_page_layout)
-                return DocumentLayout.from_pages(merged_page_layouts)
+                merged_page_layouts.append(merged_page_layout)
+            return DocumentLayout.from_pages(merged_page_layouts)
     except Exception as e:
         if os.path.isdir(filename) or os.path.isfile(filename):
             raise e
