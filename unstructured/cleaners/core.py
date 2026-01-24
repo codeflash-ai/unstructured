@@ -21,6 +21,8 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+paragraph_pattern_re = re.compile(PARAGRAPH_PATTERN)
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -119,18 +121,22 @@ def group_bullet_paragraph(paragraph: str) -> list:
     '''○ The big red fox is walking down the lane.
     ○ At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = re.compile(PARAGRAPH_PATTERN)
 
     # pytesseract converts some bullet points to standalone "e" characters.
     # Substitute "e" with bullets since they are later used in partition_text
     # to determine list element type.
     paragraph = E_BULLET_PATTERN.sub("·", paragraph).strip()
 
-    bullet_paras = UNICODE_BULLETS_RE_0W.split(paragraph)
+    # Normalize paragraph breaks once for the whole text, rather than doing a
+    # regex substitution per bullet. This preserves behavior but avoids many
+    # repeated regex substitutions.
+    normalized = paragraph_pattern_re.sub(" ", paragraph)
+
+    bullet_paras = UNICODE_BULLETS_RE_0W.split(normalized)
     clean_paragraphs = []
     for bullet in bullet_paras:
         if bullet:
-            clean_paragraphs.append(paragraph_pattern_re.sub(" ", bullet))
+            clean_paragraphs.append(bullet)
     return clean_paragraphs
 
 
