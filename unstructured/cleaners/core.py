@@ -21,6 +21,12 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+_WHITESPACE_CHARS_RE = re.compile(r"[\xa0\n]")
+
+_MULTIPLE_SPACES_RE = re.compile(r"[ ]{2,}")
+
+_DASHES_RE = re.compile(r"[-\u2013]")
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -329,8 +335,8 @@ def clean_extra_whitespace(text: str) -> str:
     -------
     ITEM 1.     BUSINESS -> ITEM 1. BUSINESS
     """
-    cleaned_text = re.sub(r"[\xa0\n]", " ", text)
-    cleaned_text = re.sub(r"([ ]{2,})", " ", cleaned_text)
+    cleaned_text = _WHITESPACE_CHARS_RE.sub(" ", text)
+    cleaned_text = _MULTIPLE_SPACES_RE.sub(" ", cleaned_text)
     return cleaned_text.strip()
 
 
@@ -342,7 +348,7 @@ def clean_dashes(text: str) -> str:
     ITEM 1. -BUSINESS -> ITEM 1.  BUSINESS
     """
     # NOTE(Yuming): '\u2013' is the unicode string of 'EN DASH', a variation of "-"
-    return re.sub(r"[-\u2013]", " ", text).strip()
+    return _DASHES_RE.sub(" ", text).strip()
 
 
 def clean_trailing_punctuation(text: str) -> str:
