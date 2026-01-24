@@ -21,6 +21,12 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+_paragraph_pattern_re = (
+    PARAGRAPH_PATTERN
+    if isinstance(PARAGRAPH_PATTERN, re.Pattern)
+    else re.compile(PARAGRAPH_PATTERN)
+)
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -119,7 +125,11 @@ def group_bullet_paragraph(paragraph: str) -> list:
     '''○ The big red fox is walking down the lane.
     ○ At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = re.compile(PARAGRAPH_PATTERN)
+    paragraph_pattern_re = _paragraph_pattern_re
+
+    # pytesseract converts some bullet points to standalone "e" characters.
+    # Substitute "e" with bullets since they are later used in partition_text
+    # to determine list element type.
 
     # pytesseract converts some bullet points to standalone "e" characters.
     # Substitute "e" with bullets since they are later used in partition_text
@@ -127,10 +137,8 @@ def group_bullet_paragraph(paragraph: str) -> list:
     paragraph = E_BULLET_PATTERN.sub("·", paragraph).strip()
 
     bullet_paras = UNICODE_BULLETS_RE_0W.split(paragraph)
-    clean_paragraphs = []
-    for bullet in bullet_paras:
-        if bullet:
-            clean_paragraphs.append(paragraph_pattern_re.sub(" ", bullet))
+    # Use a list comprehension to avoid repeated append overhead.
+    clean_paragraphs = [paragraph_pattern_re.sub(" ", bullet) for bullet in bullet_paras if bullet]
     return clean_paragraphs
 
 
@@ -153,11 +161,7 @@ def group_broken_paragraphs(
     '''The big red fox is walking down the lane.
     At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = (
-        PARAGRAPH_PATTERN
-        if isinstance(PARAGRAPH_PATTERN, re.Pattern)
-        else re.compile(PARAGRAPH_PATTERN)
-    )
+    paragraph_pattern_re = _paragraph_pattern_re
 
     paragraphs = paragraph_split.split(text)
     clean_paragraphs = []
@@ -175,9 +179,23 @@ def group_broken_paragraphs(
         #     Version 2.0, January 2004
         #     http://www.apache.org/licenses/
         para_split = line_split.split(paragraph)
-        all_lines_short = all(len(line.strip().split(" ")) < 5 for line in para_split)
+
+        # Single pass to determine if all lines are "short" and to collect non-empty lines.
+        all_lines_short = True
+        short_lines: list[str] = []
+        for line in para_split:
+            s = line.strip()
+            if not s:
+                # Empty lines count as short per original logic but are not collected.
+                continue
+            # Preserve original semantics of splitting on a literal space.
+            if len(s.split(" ")) >= 5:
+                all_lines_short = False
+                break
+            short_lines.append(line)
+
         if all_lines_short:
-            clean_paragraphs.extend(line for line in para_split if line.strip())
+            clean_paragraphs.extend(short_lines)
         else:
             clean_paragraphs.append(paragraph_pattern_re.sub(" ", paragraph))
 
