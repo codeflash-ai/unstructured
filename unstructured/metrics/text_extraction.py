@@ -4,6 +4,8 @@ from rapidfuzz.distance import Levenshtein
 
 from unstructured.cleaners.core import clean_bullets, remove_sentence_punctuation
 
+_RETURN_TYPES = ("score", "distance")
+
 
 def calculate_accuracy(
     output: Optional[str],
@@ -54,15 +56,32 @@ def calculate_edit_distance(
         - "distance": Returns the raw edit distance value.
 
     """
-    return_types = ["score", "distance"]
-    if return_as not in return_types:
-        raise ValueError("Invalid return value type. Expected one of: %s" % return_types)
-    output = standardize_quotes(prepare_str(output, standardize_whitespaces))
-    source = standardize_quotes(prepare_str(source, standardize_whitespaces))
+    if return_as not in _RETURN_TYPES:
+        raise ValueError("Invalid return value type. Expected one of: %s" % (list(_RETURN_TYPES),))
+
+    # Prepare strings (may be expensive); keep semantics identical.
+    output = prepare_str(output, standardize_whitespaces)
+    source = prepare_str(source, standardize_whitespaces)
+
+    # Avoid running the heavier unicode quote standardization when both strings are pure ASCII.
+    # str.isascii() is a fast C-level check and correctly identifies cases where no
+    # non-ASCII quote characters are present.
+    if not output.isascii():
+        output = standardize_quotes(output)
+    if not source.isascii():
+        source = standardize_quotes(source)
+
+    # Fast path: if strings are identical after preprocessing, we can return immediately.
+    if output == source:
+        if return_as == "distance":
+            return 0
+        # return_as == "score"
+        return 1.0
+
     distance = Levenshtein.distance(output, source, weights=weights)  # type: ignore
-    # lower bounded the char length for source string at 1.0 because to avoid division by zero
+    # lower bounded the char length for source string at 1 because to avoid division by zero
     # in the case where source string is empty, the distance should be at 100%
-    source_char_len = max(len(source), 1.0)  # type: ignore
+    source_char_len = max(len(source), 1)
     bounded_percentage_distance = min(max(distance / source_char_len, 0.0), 1.0)
     if return_as == "score":
         return 1 - bounded_percentage_distance
