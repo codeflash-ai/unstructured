@@ -142,22 +142,34 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
             List of embedding vectors.
         """
         if self._is_context_model():
-            result = client.contextualized_embed(
-                inputs=[batch],
-                model=self.config.model_name,
-                input_type=input_type,
-                output_dimension=self.config.output_dimension,
-            )
-            return [list(emb) for emb in result.results[0].embeddings]
+            method = client.contextualized_embed
+            kwargs = {
+                "inputs": [batch],
+                "model": self.config.model_name,
+                "input_type": input_type,
+                "output_dimension": self.config.output_dimension,
+            }
         else:
-            result = client.embed(
-                texts=batch,
-                model=self.config.model_name,
-                input_type=input_type,
-                truncation=self.config.truncation,
-                output_dimension=self.config.output_dimension,
-            )
-            return [list(emb) for emb in result.embeddings]
+            method = client.embed
+            kwargs = {
+                "texts": batch,
+                "model": self.config.model_name,
+                "input_type": input_type,
+                "truncation": self.config.truncation,
+                "output_dimension": self.config.output_dimension,
+            }
+
+        result = method(**kwargs)
+
+        # Normalize result structure: contextualized_embed returns nested results,
+        # while embed returns embeddings directly.
+        if hasattr(result, "results"):
+            embeddings_seq = result.results[0].embeddings
+        else:
+            embeddings_seq = result.embeddings
+
+        # Convert each embedding to a plain list of floats
+        return list(map(list, embeddings_seq))
 
     def embed_documents(self, elements: List[Element]) -> List[Element]:
         """
