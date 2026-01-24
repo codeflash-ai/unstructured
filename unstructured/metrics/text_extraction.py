@@ -80,31 +80,23 @@ def bag_of_words(text: str) -> Dict[str, int]:
     Removes sentence punctuation, but not punctuation within a word (ex. apostrophes).
     """
     bow: Dict[str, int] = {}
-    incorrect_word: str = ""
     words = clean_bullets(remove_sentence_punctuation(text.lower(), ["-", "'"])).split()
 
-    i = 0
-    while i < len(words):
-        if len(words[i]) > 1:
-            if words[i] in bow:
-                bow[words[i]] += 1
+    n = len(words)
+    for i, w in enumerate(words):
+        if len(w) > 1:
+            if w in bow:
+                bow[w] += 1
             else:
-                bow[words[i]] = 1
-            i += 1
+                bow[w] = 1
         else:
-            j = i
-            incorrect_word = ""
-
-            while j < len(words) and len(words[j]) == 1:
-                incorrect_word += words[j]
-                j += 1
-
-            if len(incorrect_word) == 1 and words[i].isalnum():
-                if incorrect_word in bow:
-                    bow[incorrect_word] += 1
+            prev_single = i > 0 and len(words[i - 1]) == 1
+            next_single = i + 1 < n and len(words[i + 1]) == 1
+            if (not prev_single) and (not next_single) and w.isalnum():
+                if w in bow:
+                    bow[w] += 1
                 else:
-                    bow[incorrect_word] = 1
-            i = j
+                    bow[w] = 1
     return bow
 
 
@@ -139,12 +131,8 @@ def calculate_percent_missing_text(
 
     for source_word, source_count in source_bow.items():
         total_source_word_count += source_count
-        if source_word not in output_bow:
-            # entire count is missing
-            total_missing_word_count += source_count
-        else:
-            output_count = output_bow[source_word]
-            total_missing_word_count += max(source_count - output_count, 0)
+        output_count = output_bow.get(source_word, 0)
+        total_missing_word_count += max(source_count - output_count, 0)
 
     # calculate percent missing text
     if total_source_word_count == 0:
