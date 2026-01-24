@@ -174,9 +174,7 @@ def get_retries_config(
     sdk
         The UnstructuredClient object to take the default values from.
     """
-    retries_config = None
-    sdk_default_retries_config = sdk.sdk_configuration.retry_config
-    if any(
+    if not any(
         setting is not None
         for setting in (
             retries_initial_interval,
@@ -186,46 +184,48 @@ def get_retries_config(
             retries_connection_errors,
         )
     ):
+        return None
 
-        def get_backoff_default(setting_name: str, default_value: Any) -> Any:
-            if sdk_default_retries_config:  # noqa: SIM102
-                if setting_value := getattr(sdk_default_retries_config.backoff, setting_name):
-                    return setting_value
-            return default_value
+    sdk_default_retries_config = sdk.sdk_configuration.retry_config
 
-        default_retries_connneciton_errors = (
-            sdk_default_retries_config.retry_connection_errors
-            if sdk_default_retries_config
-            and sdk_default_retries_config.retry_connection_errors is not None
-            else DEFAULT_RETRIES_CONNECTION_ERRORS
-        )
+    def get_backoff_default(setting_name: str, default_value: Any) -> Any:
+        if sdk_default_retries_config:  # noqa: SIM102
+            if setting_value := getattr(sdk_default_retries_config.backoff, setting_name):
+                return setting_value
+        return default_value
 
-        backoff_strategy = retries.BackoffStrategy(
-            initial_interval=(
-                retries_initial_interval
-                or get_backoff_default("initial_interval", DEFAULT_RETRIES_INITIAL_INTERVAL_SEC)
-            ),
-            max_interval=(
-                retries_max_interval
-                or get_backoff_default("max_interval", DEFAULT_RETRIES_MAX_INTERVAL_SEC)
-            ),
-            exponent=(
-                retries_exponent or get_backoff_default("exponent", DEFAULT_RETRIES_EXPONENT)
-            ),
-            max_elapsed_time=(
-                retries_max_elapsed_time
-                or get_backoff_default("max_elapsed_time", DEFAULT_RETRIES_MAX_ELAPSED_TIME_SEC)
-            ),
-        )
-        retries_config = retries.RetryConfig(
-            strategy="backoff",
-            backoff=backoff_strategy,
-            retry_connection_errors=(
-                retries_connection_errors
-                if retries_connection_errors is not None
-                else default_retries_connneciton_errors
-            ),
-        )
+    if (
+        sdk_default_retries_config
+        and sdk_default_retries_config.retry_connection_errors is not None
+    ):
+        default_retries_connneciton_errors = sdk_default_retries_config.retry_connection_errors
+    else:
+        default_retries_connneciton_errors = DEFAULT_RETRIES_CONNECTION_ERRORS
+
+    backoff_strategy = retries.BackoffStrategy(
+        initial_interval=(
+            retries_initial_interval
+            or get_backoff_default("initial_interval", DEFAULT_RETRIES_INITIAL_INTERVAL_SEC)
+        ),
+        max_interval=(
+            retries_max_interval
+            or get_backoff_default("max_interval", DEFAULT_RETRIES_MAX_INTERVAL_SEC)
+        ),
+        exponent=(retries_exponent or get_backoff_default("exponent", DEFAULT_RETRIES_EXPONENT)),
+        max_elapsed_time=(
+            retries_max_elapsed_time
+            or get_backoff_default("max_elapsed_time", DEFAULT_RETRIES_MAX_ELAPSED_TIME_SEC)
+        ),
+    )
+    retries_config = retries.RetryConfig(
+        strategy="backoff",
+        backoff=backoff_strategy,
+        retry_connection_errors=(
+            retries_connection_errors
+            if retries_connection_errors is not None
+            else default_retries_connneciton_errors
+        ),
+    )
     return retries_config
 
 
