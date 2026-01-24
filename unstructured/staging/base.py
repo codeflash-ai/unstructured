@@ -10,15 +10,10 @@ from datetime import datetime
 from typing import Any, Iterable, Optional, Sequence, cast
 
 from unstructured.documents.coordinates import PixelSpace
-from unstructured.documents.elements import (
-    TYPE_TO_TEXT_ELEMENT_MAP,
-    CheckBox,
-    Element,
-    ElementMetadata,
-    Image,
-    Table,
-    Title,
-)
+from unstructured.documents.elements import (TYPE_TO_TEXT_ELEMENT_MAP,
+                                             CheckBox, Element,
+                                             ElementMetadata, Image, Table,
+                                             Title)
 from unstructured.file_utils.ndjson import dumps as ndjson_dumps
 from unstructured.partition.common.common import exactly_one
 from unstructured.utils import Point, dependency_exists, requires_dependencies

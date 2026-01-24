@@ -12,17 +12,11 @@ import emoji
 import psutil
 
 from unstructured.documents.coordinates import CoordinateSystem, PixelSpace
-from unstructured.documents.elements import (
-    TYPE_TO_TEXT_ELEMENT_MAP,
-    CheckBox,
-    CoordinatesMetadata,
-    Element,
-    ElementMetadata,
-    ElementType,
-    ListItem,
-    PageBreak,
-    Text,
-)
+from unstructured.documents.elements import (TYPE_TO_TEXT_ELEMENT_MAP,
+                                             CheckBox, CoordinatesMetadata,
+                                             Element, ElementMetadata,
+                                             ElementType, ListItem, PageBreak,
+                                             Text)
 from unstructured.logger import logger
 from unstructured.nlp.patterns import ENUMERATED_BULLETS_RE, UNICODE_BULLETS_RE
 
@@ -338,7 +332,8 @@ def exactly_one(**kwargs: Any) -> None:
     Example:
         >>> exactly_one(filename=filename, file=file, text=text, url=url)
     """
-    if sum([(arg is not None and arg != "") for arg in kwargs.values()]) != 1:
+    count = sum(1 for arg in kwargs.values() if arg is not None and arg != "")
+    if count != 1:
         names = list(kwargs.keys())
         if len(names) > 1:
             message = f"Exactly one of {', '.join(names[:-1])} and {names[-1]} must be specified."
