@@ -103,25 +103,40 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
         current_batch: List[str] = []
         current_batch_tokens = 0
 
-        # Tokenize all texts in one API call
-        all_token_lists = client.tokenize(texts, model=self.config.model_name)
-        token_counts = [len(tokens) for tokens in all_token_lists]
+        for text in texts:
+            # Estimate tokens for this text (roughly 4 chars per token)
+            estimated_tokens = len(text) // 4 + 1
 
-        for i, text in enumerate(texts):
-            n_tokens = token_counts[i]
+            # Check if adding this text would exceed limits
 
             # Check if adding this text would exceed limits
             if current_batch and (
                 len(current_batch) >= MAX_BATCH_SIZE
-                or (current_batch_tokens + n_tokens > max_tokens_per_batch)
+                or (current_batch_tokens + estimated_tokens > max_tokens_per_batch)
             ):
                 # Yield the current batch and start a new one
-                yield current_batch
-                current_batch = []
-                current_batch_tokens = 0
+                # Verify actual token count for current batch before yielding
+                actual_tokens = client.tokenize(current_batch, model=self.config.model_name)
+                actual_count = sum(len(tokens) for tokens in actual_tokens)
 
-            current_batch.append(text)
-            current_batch_tokens += n_tokens
+                # If we're significantly under the limit, try to add the new text
+                if (
+                    actual_count + estimated_tokens <= max_tokens_per_batch
+                    and len(current_batch) < MAX_BATCH_SIZE
+                ):
+                    current_batch.append(text)
+                    current_batch_tokens = actual_count + estimated_tokens
+                    continue
+
+                # Yield the current batch and start a new one
+                yield current_batch
+                current_batch = [text]
+                current_batch_tokens = estimated_tokens
+            else:
+                current_batch.append(text)
+                current_batch_tokens += estimated_tokens
+
+        # Yield the last batch (always has at least one text)
 
         # Yield the last batch (always has at least one text)
         if current_batch:
@@ -177,7 +192,7 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
         all_embeddings: List[List[float]] = []
 
         # Process each batch
-        batches = list(self._build_batches(texts, client))
+        batches = self._build_batches(texts, client)
 
         if self.config.show_progress_bar:
             try:
@@ -230,8 +245,6 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
     @staticmethod
     def _add_embeddings_to_elements(elements, embeddings) -> List[Element]:
         assert len(elements) == len(embeddings)
-        elements_w_embedding = []
         for i, element in enumerate(elements):
             element.embeddings = embeddings[i]
-            elements_w_embedding.append(element)
         return elements
