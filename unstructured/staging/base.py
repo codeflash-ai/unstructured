@@ -316,34 +316,28 @@ def flatten_dict(
     """
     keys_to_omit = keys_to_omit if keys_to_omit else []
     flattened_dict: dict[str, Any] = {}
-    for key, value in dictionary.items():
-        new_key = f"{parent_key}{separator}{key}" if parent_key else key
-        if new_key in keys_to_omit:
-            flattened_dict[new_key] = value
+
+    def _flatten_recursive(value: Any, current_key: str) -> None:
+        if current_key in keys_to_omit:
+            flattened_dict[current_key] = value
         elif value is None and remove_none:
-            continue
+            return
         elif isinstance(value, dict):
             value = cast("dict[str, Any]", value)
-            flattened_dict.update(
-                flatten_dict(
-                    value, new_key, separator, flatten_lists, remove_none, keys_to_omit=keys_to_omit
-                ),
-            )
+            for k, v in value.items():
+                new_key = f"{current_key}{separator}{k}" if current_key else k
+                _flatten_recursive(v, new_key)
         elif isinstance(value, (list, tuple)) and flatten_lists:
             value = cast("list[Any] | tuple[Any]", value)
             for index, item in enumerate(value):
-                flattened_dict.update(
-                    flatten_dict(
-                        {f"{new_key}{separator}{index}": item},
-                        "",
-                        separator,
-                        flatten_lists,
-                        remove_none,
-                        keys_to_omit=keys_to_omit,
-                    )
-                )
+                new_key = f"{current_key}{separator}{index}"
+                _flatten_recursive(item, new_key)
         else:
-            flattened_dict[new_key] = value
+            flattened_dict[current_key] = value
+
+    for key, value in dictionary.items():
+        new_key = f"{parent_key}{separator}{key}" if parent_key else key
+        _flatten_recursive(value, new_key)
 
     return flattened_dict
 
