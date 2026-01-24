@@ -59,17 +59,19 @@ def clean_ordered_bullets(text) -> str:
     a.b This is a very important point -> This is a very important point
     """
     text_sp = text.split()
-    text_cl = " ".join(text_sp[1:])
-    if any(["." not in text_sp[0], ".." in text_sp[0]]):
+    first_word = text_sp[0]
+
+    if "." not in first_word or ".." in first_word:
         return text
 
-    bullet = re.split(pattern=r"[\.]", string=text_sp[0])
+    bullet = first_word.split(".")
     if not bullet[-1]:
         del bullet[-1]
 
     if len(bullet[0]) > 2:
         return text
 
+    text_cl = " ".join(text_sp[1:])
     return text_cl
 
 
