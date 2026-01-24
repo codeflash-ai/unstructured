@@ -58,19 +58,22 @@ def elements_from_dicts(element_dicts: Iterable[dict[str, Any]]) -> list[Element
     """Convert a list of element-dicts to a list of elements."""
     elements: list[Element] = []
 
-    for item in element_dicts:
-        element_id: str = item.get("element_id", None)
-        metadata = (
-            ElementMetadata()
-            if item.get("metadata") is None
-            else ElementMetadata.from_dict(item["metadata"])
-        )
+    elems_append = elements.append
+    map_ = TYPE_TO_TEXT_ELEMENT_MAP
 
-        if item.get("type") in TYPE_TO_TEXT_ELEMENT_MAP:
-            ElementCls = TYPE_TO_TEXT_ELEMENT_MAP[item["type"]]
-            elements.append(ElementCls(text=item["text"], element_id=element_id, metadata=metadata))
-        elif item.get("type") == "CheckBox":
-            elements.append(
+    for item in element_dicts:
+        # Bind lookups locally to avoid repeated dict.get calls
+        get = item.get
+        element_id: str = get("element_id", None)
+        md = get("metadata")
+        metadata = ElementMetadata() if md is None else ElementMetadata.from_dict(md)
+
+        type_ = get("type")
+        if type_ in map_:
+            ElementCls = map_[type_]
+            elems_append(ElementCls(text=item["text"], element_id=element_id, metadata=metadata))
+        elif type_ == "CheckBox":
+            elems_append(
                 CheckBox(checked=item["checked"], element_id=element_id, metadata=metadata)
             )
 

@@ -266,8 +266,15 @@ class ElementMetadata:
 
         # -- accommodate pathlib.Path for filename --
         filename = str(filename) if isinstance(filename, pathlib.Path) else filename
-        # -- produces "", "" when filename arg is None --
-        directory_path, file_name = os.path.split(filename or "")
+
+        # -- avoid calling os.path.split when filename is falsy to reduce overhead --
+        if filename:
+            directory_path, file_name = os.path.split(filename)
+        else:
+            directory_path, file_name = "", ""
+
+        # -- prefer `file_directory` arg if specified, otherwise split of file-path passed as
+        # -- `filename` arg, or None if `filename` is the empty string.
         # -- prefer `file_directory` arg if specified, otherwise split of file-path passed as
         # -- `filename` arg, or None if `filename` is the empty string.
         self.file_directory = file_directory or directory_path or None
@@ -334,8 +341,6 @@ class ElementMetadata:
         """
         from unstructured.staging.base import elements_from_base64_gzipped_json
 
-        # -- avoid unexpected mutation by working on a copy of provided dict --
-        meta_dict = copy.deepcopy(meta_dict)
         self = ElementMetadata()
         for field_name, field_value in meta_dict.items():
             if field_name == "coordinates":
@@ -345,7 +350,11 @@ class ElementMetadata:
             elif field_name == "orig_elements":
                 self.orig_elements = elements_from_base64_gzipped_json(field_value)
             elif field_name == "key_value_pairs":
-                self.key_value_pairs = _kvform_rehydrate_internal_elements(field_value)
+                # _kvform_rehydrate_internal_elements mutates the kv_pairs argument in-place,
+                # so deepcopy only this portion to avoid mutating the caller's structure.
+                self.key_value_pairs = _kvform_rehydrate_internal_elements(
+                    copy.deepcopy(field_value)
+                )
             else:
                 setattr(self, field_name, field_value)
 
@@ -1035,6 +1044,8 @@ def _kvform_rehydrate_internal_elements(kv_pairs: list[dict[str, Any]]) -> list[
     e.g. when partition_json is used.
     """
     from unstructured.staging.base import elements_from_dicts
+
+    Points: TypeAlias = "tuple[Point, ...]"
 
     # safe to overwrite - deepcopy already happened
     for kv_pair in kv_pairs:
