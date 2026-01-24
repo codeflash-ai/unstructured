@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import zlib
-from copy import deepcopy
+from copy import copy
 from datetime import datetime
 from typing import Any, Iterable, Optional, Sequence, cast
 
@@ -21,7 +21,7 @@ from unstructured.documents.elements import (
 )
 from unstructured.file_utils.ndjson import dumps as ndjson_dumps
 from unstructured.partition.common.common import exactly_one
-from unstructured.utils import Point, dependency_exists, requires_dependencies
+from unstructured.utils import dependency_exists, requires_dependencies
 
 if dependency_exists("pandas"):
     import pandas as pd
@@ -232,19 +232,19 @@ def elements_to_ndjson(
 def _fix_metadata_field_precision(elements: Iterable[Element]) -> list[Element]:
     out_elements: list[Element] = []
     for element in elements:
-        el = deepcopy(element)
+        el = copy(element)
         if el.metadata.coordinates:
+            el.metadata = copy(element.metadata)
+            el.metadata.coordinates = copy(element.metadata.coordinates)
             precision = 1 if isinstance(el.metadata.coordinates.system, PixelSpace) else 2
             points = el.metadata.coordinates.points
             assert points is not None
-            rounded_points: list[Point] = []
-            for point in points:
-                x, y = point
-                rounded_point = (round(x, precision), round(y, precision))
-                rounded_points.append(rounded_point)
-            el.metadata.coordinates.points = tuple(rounded_points)
+            rounded_points = tuple((round(x, precision), round(y, precision)) for x, y in points)
+            el.metadata.coordinates.points = rounded_points
 
         if el.metadata.detection_class_prob:
+            if el.metadata is element.metadata:
+                el.metadata = copy(element.metadata)
             el.metadata.detection_class_prob = round(el.metadata.detection_class_prob, 5)
 
         out_elements.append(el)
