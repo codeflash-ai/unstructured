@@ -84,26 +84,23 @@ def bag_of_words(text: str) -> Dict[str, int]:
     words = clean_bullets(remove_sentence_punctuation(text.lower(), ["-", "'"])).split()
 
     i = 0
-    while i < len(words):
-        if len(words[i]) > 1:
-            if words[i] in bow:
-                bow[words[i]] += 1
-            else:
-                bow[words[i]] = 1
+    n = len(words)
+    while i < n:
+        w = words[i]
+        lw = len(w)
+        if lw > 1:
+            bow[w] = bow.get(w, 0) + 1
             i += 1
         else:
-            j = i
-            incorrect_word = ""
-
-            while j < len(words) and len(words[j]) == 1:
-                incorrect_word += words[j]
+            # Find the extent of the run of single-character tokens.
+            j = i + 1
+            while j < n and len(words[j]) == 1:
                 j += 1
 
-            if len(incorrect_word) == 1 and words[i].isalnum():
-                if incorrect_word in bow:
-                    bow[incorrect_word] += 1
-                else:
-                    bow[incorrect_word] = 1
+            # If the run is exactly one single-character token and it's alphanumeric,
+            # count it. This preserves the original logic without constructing strings.
+            if j == i + 1 and w.isalnum():
+                bow[w] = bow.get(w, 0) + 1
             i = j
     return bow
 
