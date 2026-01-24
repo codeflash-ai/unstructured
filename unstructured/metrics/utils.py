@@ -10,6 +10,8 @@ import pandas as pd
 
 from unstructured.staging.base import elements_from_json, elements_to_text
 
+_DIGIT_PATTERN = re.compile(r"(\d+)")
+
 logger = logging.getLogger("unstructured.eval")
 
 
@@ -127,7 +129,7 @@ def _sorting_key(filename):
     extracts the integer in the bracket and sort those numbers ascendingly.
     """
     # Regular expression to find the number in the filename
-    numbers = re.findall(r"(\d+)", filename)
+    numbers = _DIGIT_PATTERN.findall(filename)
     if numbers:
         # If there's a number, return it as an integer for sorting
         return int(numbers[-1])
