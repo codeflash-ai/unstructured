@@ -66,7 +66,9 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
     config: VoyageAIEmbeddingConfig
 
     def get_exemplary_embedding(self) -> List[float]:
-        return self.embed_query(query="A sample query.")
+        if not hasattr(self, "_exemplary_embedding_cached"):
+            self._exemplary_embedding_cached = self.embed_query(query="A sample query.")
+        return self._exemplary_embedding_cached
 
     def initialize(self):
         pass
