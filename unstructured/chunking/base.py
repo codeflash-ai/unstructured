@@ -446,13 +446,13 @@ class PreChunk:
 
     def can_combine(self, pre_chunk: PreChunk) -> bool:
         """True when `pre_chunk` can be combined with this one without exceeding size limits."""
-        if len(self._text) >= self._opts.combine_text_under_n_chars:
+        if self._text_length >= self._opts.combine_text_under_n_chars:
             return False
         # -- avoid duplicating length computations by doing a trial-combine which is just as
         # -- efficient and definitely more robust than hoping two different computations of combined
         # -- length continue to get the same answer as the code evolves. Only possible because
         # -- `.combine()` is non-mutating.
-        combined_len = len(self.combine(pre_chunk)._text)
+        combined_len = self.combine(pre_chunk)._text_length
 
         return combined_len <= self._opts.hard_max
 
@@ -516,6 +516,11 @@ class PreChunk:
         that of the next by a blank line ("\n\n").
         """
         return self._opts.text_separator.join(self._iter_text_segments())
+
+    @lazyproperty
+    def _text_length(self) -> int:
+        """Cached length of the text to avoid repeated computation."""
+        return len(self._text)
 
 
 # ================================================================================================
