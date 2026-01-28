@@ -5,6 +5,7 @@ import os
 from typing import TYPE_CHECKING, Any, BinaryIO, Iterable, List, Optional, Union, cast
 
 import numpy as np
+from numba import njit
 from pdfminer.layout import LTChar, LTContainer, LTTextBox
 from pdfminer.pdftypes import PDFObjRef
 from pdfminer.utils import open_filename
@@ -618,14 +619,8 @@ def bboxes1_is_almost_subregion_of_bboxes2(
     bboxes2"""
     coords1 = get_coords_from_bboxes(bboxes1, round_to=round_to)
     coords2 = get_coords_from_bboxes(bboxes2, round_to=round_to)
-
-    inter_area, boxa_area, boxb_area = areas_of_boxes_and_intersection_area(
-        coords1, coords2, round_to=round_to
-    )
-
-    return (inter_area / np.maximum(boxa_area, EPSILON_AREA) > threshold) & (
-        boxa_area <= boxb_area.T
-    )
+    # for maximum speed use the numba JIT version
+    return _bboxes1_is_almost_subregion_of_bboxes2_numba(coords1, coords2, threshold)
 
 
 def boxes_self_iou(bboxes, threshold: float = 0.5, round_to: int = DEFAULT_ROUND) -> np.ndarray:
@@ -1182,3 +1177,90 @@ def try_argmin(array: np.ndarray) -> int:
         return int(np.argmin(array))
     except IndexError:
         return -1
+
+
+@njit(cache=True, fastmath=True)
+def _get_coords_from_bboxes_numba(bboxes, round_to: int):
+    """
+    Numba-accelerated version of get_coords_from_bboxes supporting only np.ndarray input
+    or a sequence of objects which have .x1, .y1, .x2, .y2
+    Only float fields supported due to numba's type constraints.
+    """
+    if isinstance(bboxes, np.ndarray):
+        arr = np.empty_like(bboxes)
+        # Use numpy-based rounding for the same behavior
+        arr[:] = np.round(bboxes, round_to)
+        return arr
+
+    n = len(bboxes)
+    coords = np.zeros((n, 4), dtype=np.float64)
+
+    for i in range(n):
+        bbox = bboxes[i]
+        coords[i, 0] = bbox.x1
+        coords[i, 1] = bbox.y1
+        coords[i, 2] = bbox.x2
+        coords[i, 3] = bbox.y2
+
+    for r in range(coords.shape[0]):
+        for c in range(coords.shape[1]):
+            # mimic np.round to requested decimals
+            power = 10.0**round_to
+            coords[r, c] = np.round(coords[r, c] * power) / power
+
+    return coords
+
+
+@njit(cache=True, fastmath=True)
+def _areas_of_boxes_and_intersection_area_numba(
+    coords1: np.ndarray, coords2: np.ndarray, round_to: int = DEFAULT_ROUND
+):
+    n1 = coords1.shape[0]
+    n2 = coords2.shape[0]
+    inter_area = np.zeros((n1, n2), dtype=np.float64)
+    boxa_area = np.zeros((n1, 1), dtype=np.float64)
+    boxb_area = np.zeros((n2, 1), dtype=np.float64)
+
+    for a in range(n1):
+        x11 = coords1[a, 0]
+        y11 = coords1[a, 1]
+        x12 = coords1[a, 2]
+        y12 = coords1[a, 3]
+        boxa_area[a, 0] = np.round((x12 - x11 + 1) * (y12 - y11 + 1), round_to)
+
+        for b in range(n2):
+            x21 = coords2[b, 0]
+            y21 = coords2[b, 1]
+            x22 = coords2[b, 2]
+            y22 = coords2[b, 3]
+            boxb_area[b, 0] = np.round((x22 - x21 + 1) * (y22 - y21 + 1), round_to)
+
+            ixmin = max(x11, x21)
+            iymin = max(y11, y21)
+            ixmax = min(x12, x22)
+            iymax = min(y12, y22)
+            iw = max(ixmax - ixmin + 1, 0.0)
+            ih = max(iymax - iymin + 1, 0.0)
+            inter = iw * ih
+            inter_area[a, b] = np.round(inter, round_to)
+
+    return inter_area, boxa_area, boxb_area
+
+
+@njit(cache=True, fastmath=True)
+def _bboxes1_is_almost_subregion_of_bboxes2_numba(coords1, coords2, threshold: float) -> np.ndarray:
+    # Use DEFAULT_ROUND as the default for rounding
+    inter_area, boxa_area, boxb_area = _areas_of_boxes_and_intersection_area_numba(
+        coords1, coords2, DEFAULT_ROUND
+    )
+    n1, n2 = inter_area.shape
+    out = np.zeros((n1, n2), dtype=np.bool_)
+    for i in range(n1):
+        for j in range(n2):
+            # preserve computation method
+            if boxa_area[i, 0] > boxb_area[j, 0]:
+                continue
+            val = inter_area[i, j] / max(boxa_area[i, 0], EPSILON_AREA)
+            if val > threshold:
+                out[i, j] = True
+    return out
