@@ -40,7 +40,7 @@ fire==0.7.1
     # via unstructured-paddleocr
 fonttools==4.61.1
     # via
-    #   -c deps/constraints.txt
+    #   -c ./deps/constraints.txt
     #   unstructured-paddleocr
 h11==0.16.0
     # via
@@ -111,9 +111,9 @@ pillow==12.1.0
     #   paddlepaddle
     #   scikit-image
     #   unstructured-paddleocr
-protobuf==6.33.4
+protobuf==6.33.5
     # via
-    #   -c deps/constraints.txt
+    #   -c ./deps/constraints.txt
     #   paddlepaddle
 pyclipper==1.4.0
     # via unstructured-paddleocr
@@ -178,6 +178,6 @@ unstructured-paddleocr==2.10.0
     # via -r extra-paddleocr.in
 urllib3==2.6.3
     # via
+    #   -c ./deps/constraints.txt
     #   -c base.txt
-    #   -c deps/constraints.txt
     #   requests
