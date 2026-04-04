@@ -6,7 +6,7 @@ import collections
 import copy
 import uuid
 from functools import cached_property
-from typing import Any, Callable, DefaultDict, Iterable, Iterator, cast
+from typing import Any, Callable, DefaultDict, Iterable, Iterator
 
 import regex
 from lxml.etree import ParserError
@@ -850,7 +850,7 @@ class _Chunker:
                     yield field_name, values[0]
                 # -- concatenate lists from each element that had one, in order --
                 elif strategy is CS.LIST_CONCATENATE:
-                    yield field_name, sum(values, cast("list[Any]", []))
+                    yield field_name, [item for sublist in values for item in sublist]
                 # -- union lists from each element, preserving order of appearance --
                 elif strategy is CS.LIST_UNIQUE:
                     # -- Python 3.7+ maintains dict insertion order --
