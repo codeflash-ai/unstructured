@@ -71,6 +71,26 @@ def clean_ordered_bullets(text) -> str:
     return text_cl
 
 
+_LIGATURES_MAP = {
+    "æ": "ae",
+    "Æ": "AE",
+    "ﬀ": "ff",
+    "ﬁ": "fi",
+    "ﬂ": "fl",
+    "ﬃ": "ffi",
+    "ﬄ": "ffl",
+    "ﬅ": "ft",
+    "ʪ": "ls",
+    "œ": "oe",
+    "Œ": "OE",
+    "ȹ": "qp",
+    "ﬆ": "st",
+    "ʦ": "ts",
+}
+# Pre-compile regex for ligature replacement (single pass instead of 14 sequential .replace())
+_LIGATURES_RE = re.compile("|".join(re.escape(k) for k in _LIGATURES_MAP))
+
+
 def clean_ligatures(text) -> str:
     """Replaces ligatures with their most likely equivalent characters.
 
@@ -79,27 +99,7 @@ def clean_ligatures(text) -> str:
     The beneﬁts -> The benefits
     High quality ﬁnancial -> High quality financial
     """
-    ligatures_map = {
-        "æ": "ae",
-        "Æ": "AE",
-        "ﬀ": "ff",
-        "ﬁ": "fi",
-        "ﬂ": "fl",
-        "ﬃ": "ffi",
-        "ﬄ": "ffl",
-        "ﬅ": "ft",
-        "ʪ": "ls",
-        "œ": "oe",
-        "Œ": "OE",
-        "ȹ": "qp",
-        "ﬆ": "st",
-        "ʦ": "ts",
-    }
-    cleaned_text: str = text
-    for k, v in ligatures_map.items():
-        cleaned_text = cleaned_text.replace(k, v)
-
-    return cleaned_text
+    return _LIGATURES_RE.sub(lambda m: _LIGATURES_MAP[m.group()], text)
 
 
 def group_bullet_paragraph(paragraph: str) -> list:
@@ -385,6 +385,11 @@ def remove_sentence_punctuation(s: str, exclude_punctuation: Optional[list]) -> 
     return s
 
 
+_EXTRA_WS_CHARS_RE = re.compile(r"[\xa0\n]")
+_MULTI_SPACE_RE = re.compile(r" {2,}")
+_DASH_RE = re.compile(r"[-\u2013]")
+
+
 def clean_extra_whitespace(text: str) -> str:
     """Cleans extra whitespace characters that appear between words.
 
@@ -392,8 +397,8 @@ def clean_extra_whitespace(text: str) -> str:
     -------
     ITEM 1.     BUSINESS -> ITEM 1. BUSINESS
     """
-    cleaned_text = re.sub(r"[\xa0\n]", " ", text)
-    cleaned_text = re.sub(r"([ ]{2,})", " ", cleaned_text)
+    cleaned_text = _EXTRA_WS_CHARS_RE.sub(" ", text)
+    cleaned_text = _MULTI_SPACE_RE.sub(" ", cleaned_text)
     return cleaned_text.strip()
 
 
@@ -405,7 +410,7 @@ def clean_dashes(text: str) -> str:
     ITEM 1. -BUSINESS -> ITEM 1.  BUSINESS
     """
     # NOTE(Yuming): '\u2013' is the unicode string of 'EN DASH', a variation of "-"
-    return re.sub(r"[-\u2013]", " ", text).strip()
+    return _DASH_RE.sub(" ", text).strip()
 
 
 def clean_trailing_punctuation(text: str) -> str:
