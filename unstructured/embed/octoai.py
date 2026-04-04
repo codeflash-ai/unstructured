@@ -51,8 +51,9 @@ class OctoAIEmbeddingEncoder(BaseEmbeddingEncoder):
         return np.isclose(np.linalg.norm(exemplary_embedding), 1.0)
 
     def embed_query(self, query):
-        client = self.config.get_client()
-        response = client.embeddings.create(input=str(query), model=self.config.model_name)
+        if not hasattr(self, "_client"):
+            self._client = self.config.get_client()
+        response = self._client.embeddings.create(input=str(query), model=self.config.model_name)
         return response.data[0].embedding
 
     def embed_documents(self, elements: List[Element]) -> List[Element]:
