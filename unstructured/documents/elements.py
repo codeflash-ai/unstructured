@@ -275,15 +275,11 @@ class ElementMetadata:
         segment_end_seconds: Optional[float] = None,
         segment_start_seconds: Optional[float] = None,
     ) -> None:
-        self.attached_to_filename = attached_to_filename
-        self.bcc_recipient = bcc_recipient
-        self.category_depth = category_depth
-        self.cc_recipient = cc_recipient
-        self.coordinates = coordinates
-        self.data_source = data_source
-        self.detection_class_prob = detection_class_prob
-        self.emphasized_text_contents = emphasized_text_contents
-        self.emphasized_text_tags = emphasized_text_tags
+        # -- Use object.__setattr__ directly for non-None values during init to bypass the
+        # -- custom __setattr__ overhead. During __init__ the instance __dict__ is empty so
+        # -- the None-cleanup logic in __setattr__ is unnecessary, and we can skip None values
+        # -- entirely (they are the default/absent state for sparse metadata).
+        _sa = object.__setattr__
 
         # -- accommodate pathlib.Path for filename --
         filename = str(filename) if isinstance(filename, pathlib.Path) else filename
@@ -291,41 +287,58 @@ class ElementMetadata:
         directory_path, file_name = os.path.split(filename or "")
         # -- prefer `file_directory` arg if specified, otherwise split of file-path passed as
         # -- `filename` arg, or None if `filename` is the empty string.
-        self.file_directory = file_directory or directory_path or None
-        self.filename = file_name or None
+        _file_directory = file_directory or directory_path or None
+        _filename = file_name or None
 
-        self.filetype = filetype
-        self.header_footer_type = header_footer_type
-        self.image_base64 = image_base64
-        self.image_mime_type = image_mime_type
-        self.image_url = image_url
-        self.image_path = image_path
-        self.is_continuation = is_continuation
-        self.languages = languages
-        self.last_modified = last_modified
-        self.link_texts = link_texts
-        self.link_urls = link_urls
-        self.link_start_indexes = link_start_indexes
-        self.links = links
-        self.email_message_id = email_message_id
-        self.orig_elements = orig_elements
-        self.page_name = page_name
-        self.page_number = page_number
-        self.parent_id = parent_id
-        self.routing = routing
-        self.routing_score = routing_score
-        self.sent_from = sent_from
-        self.sent_to = sent_to
-        self.signature = signature
-        self.subject = subject
-        self.text_as_html = text_as_html
-        self.table_as_cells = table_as_cells
-        self.table_id = table_id
-        self.chunk_index = chunk_index
-        self.num_carried_over_header_rows = num_carried_over_header_rows
-        self.url = url
-        self.segment_end_seconds = segment_end_seconds
-        self.segment_start_seconds = segment_start_seconds
+        # -- Only store non-None values (sparse storage). This avoids calling custom
+        # -- __setattr__ for each of the ~38 fields, most of which default to None.
+        for _name, _val in (
+            ("attached_to_filename", attached_to_filename),
+            ("bcc_recipient", bcc_recipient),
+            ("category_depth", category_depth),
+            ("cc_recipient", cc_recipient),
+            ("coordinates", coordinates),
+            ("data_source", data_source),
+            ("detection_class_prob", detection_class_prob),
+            ("emphasized_text_contents", emphasized_text_contents),
+            ("emphasized_text_tags", emphasized_text_tags),
+            ("file_directory", _file_directory),
+            ("filename", _filename),
+            ("filetype", filetype),
+            ("header_footer_type", header_footer_type),
+            ("image_base64", image_base64),
+            ("image_mime_type", image_mime_type),
+            ("image_url", image_url),
+            ("image_path", image_path),
+            ("is_continuation", is_continuation),
+            ("languages", languages),
+            ("last_modified", last_modified),
+            ("link_texts", link_texts),
+            ("link_urls", link_urls),
+            ("link_start_indexes", link_start_indexes),
+            ("links", links),
+            ("email_message_id", email_message_id),
+            ("orig_elements", orig_elements),
+            ("page_name", page_name),
+            ("page_number", page_number),
+            ("parent_id", parent_id),
+            ("routing", routing),
+            ("routing_score", routing_score),
+            ("sent_from", sent_from),
+            ("sent_to", sent_to),
+            ("signature", signature),
+            ("subject", subject),
+            ("text_as_html", text_as_html),
+            ("table_as_cells", table_as_cells),
+            ("table_id", table_id),
+            ("chunk_index", chunk_index),
+            ("num_carried_over_header_rows", num_carried_over_header_rows),
+            ("url", url),
+            ("segment_end_seconds", segment_end_seconds),
+            ("segment_start_seconds", segment_start_seconds),
+        ):
+            if _val is not None:
+                _sa(self, _name, _val)
 
     def __eq__(self, other: object) -> bool:
         """Implments equivalence, like meta == other_meta.
@@ -477,6 +490,9 @@ class ElementMetadata:
         return frozenset(self.__annotations__)
 
 
+_field_consolidation_strategies_cache: dict[str, "ConsolidationStrategy"] = {}
+
+
 class ConsolidationStrategy(enum.Enum):
     """Methods by which a metadata field can be consolidated across a collection of elements.
 
@@ -507,7 +523,9 @@ class ConsolidationStrategy(enum.Enum):
         not `Table`) have their metadata consolidated, so these strategies are only applicable for
         non-Table Text elements.
         """
-        return {
+        if _field_consolidation_strategies_cache:
+            return _field_consolidation_strategies_cache
+        _field_consolidation_strategies_cache.update({
             "attached_to_filename": cls.FIRST,
             "cc_recipient": cls.FIRST,
             "bcc_recipient": cls.FIRST,
@@ -559,7 +577,8 @@ class ConsolidationStrategy(enum.Enum):
             "segment_start_seconds": cls.DROP,
             "segment_end_seconds": cls.DROP,
             "key_value_pairs": cls.DROP,  # -- only occurs in FormKeysValues --
-        }
+        })
+        return _field_consolidation_strategies_cache
 
 
 _P = ParamSpec("_P")
