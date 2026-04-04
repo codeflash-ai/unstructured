@@ -25,6 +25,20 @@ from unstructured.documents.elements import (
 )
 from unstructured.logger import logger
 
+_drop_field_names_cache: tuple[str, ...] | None = None
+
+
+def _DROP_FIELD_NAMES() -> tuple[str, ...]:
+    """Lazily computed tuple of field names with DROP consolidation strategy."""
+    global _drop_field_names_cache
+    if _drop_field_names_cache is None:
+        CS = ConsolidationStrategy
+        _drop_field_names_cache = tuple(
+            name for name, strat in CS.field_consolidation_strategies().items() if strat is CS.DROP
+        )
+    return _drop_field_names_cache
+
+
 # ================================================================================================
 # MODEL
 # ================================================================================================
@@ -1057,17 +1071,11 @@ class _TableChunker:
         Note this is a fresh copy of the metadata on each call since it will need to be mutated
         differently for each chunk formed from this pre-chunk.
         """
-        CS = ConsolidationStrategy
         metadata = copy.deepcopy(self._table.metadata)
 
         # -- drop metadata fields not appropriate for chunks, in particular
         # -- parent_id's will not reliably point to an existing element
-        drop_field_names = [
-            field_name
-            for field_name, strategy in CS.field_consolidation_strategies().items()
-            if strategy is CS.DROP
-        ]
-        for field_name in drop_field_names:
+        for field_name in _DROP_FIELD_NAMES():
             setattr(metadata, field_name, None)
 
         if self._opts.include_orig_elements:
