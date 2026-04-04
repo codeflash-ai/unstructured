@@ -60,7 +60,8 @@ def nexttoken(self) -> Tuple[int, PSBaseParserToken]:
             if not self._tokens:
                 raise
     token = self._tokens.pop(0)
-    log.debug("nexttoken: %r", token)
+    if log.isEnabledFor(10):  # logging.DEBUG is 10
+        log.debug("nexttoken: %r", token)
     return token
 
 
