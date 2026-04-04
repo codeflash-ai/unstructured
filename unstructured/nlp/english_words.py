@@ -10,8 +10,11 @@ DIRECTORY = pathlib.Path(__file__).parent.resolve()
 ENGLISH_WORDS_FILE = os.path.join(DIRECTORY, "english-words.txt")
 
 with open(ENGLISH_WORDS_FILE) as f:
-    BASE_ENGLISH_WORDS = f.read().split("\n")
+    # Build set directly from line iterator to avoid intermediate list allocation.
+    ENGLISH_WORDS: Set[str] = {line.rstrip("\n") for line in f}
 
 # NOTE(robinson) - add new words that we want to pass for the English check in here
 ADDITIONAL_ENGLISH_WORDS: List[str] = []
-ENGLISH_WORDS: Set[str] = set(BASE_ENGLISH_WORDS + ADDITIONAL_ENGLISH_WORDS)
+# Add any additional words to the set (currently empty but retained for extensibility)
+ENGLISH_WORDS.update(ADDITIONAL_ENGLISH_WORDS)
+
