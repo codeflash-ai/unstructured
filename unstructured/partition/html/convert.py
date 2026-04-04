@@ -173,7 +173,7 @@ class RadioCheckedElementHtml(InputElementHtml):
         element_html["checked"] = "true"
 
 
-LIST_ELEMENTS = [ElementType.LIST_ITEM, ElementType.LIST_ITEM_OTHER]
+LIST_ELEMENTS = frozenset([ElementType.LIST_ITEM, ElementType.LIST_ITEM_OTHER])
 
 TYPE_TO_HTML_MAP = {
     ElementType.UNCATEGORIZED_TEXT: TextElementHtml,
@@ -245,17 +245,26 @@ def _group_element_children(children: list[ElementHtml]) -> list[ElementHtml]:
 
 def _elements_to_html_tags_by_parent(elements: list[ElementHtml]) -> list[ElementHtml]:
     parent_to_children_map: dict[str, list[ElementHtml]] = defaultdict(list)
+    id_to_element_map: dict[str, ElementHtml] = {}
+    root_elements: list[ElementHtml] = []
+
     for element in elements:
-        if element.element.metadata.parent_id is not None:
-            parent_to_children_map[element.element.metadata.parent_id].append(element)
+        id_to_element_map[element.element.id] = element
+        parent_id = element.element.metadata.parent_id
+        if parent_id is not None:
+            parent_to_children_map[parent_id].append(element)
+        else:
+            root_elements.append(element)
+
     for parent_id, children in parent_to_children_map.items():
         grouped_children = _group_element_children(children)
-        parent = next((el for el in elements if el.element.id == parent_id), None)
+        parent = id_to_element_map.get(parent_id)
         if parent is None:
             logger.warning(f"Parent element with id {parent_id} not found. Skipping.")
             continue
         parent.set_children(grouped_children)
-    return [el for el in elements if el.element.metadata.parent_id is None]
+
+    return root_elements
 
 
 def _elements_to_html_tags(
