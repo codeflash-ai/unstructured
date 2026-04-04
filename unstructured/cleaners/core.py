@@ -19,6 +19,10 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+# Pre-compile the simple paragraph pattern (just newline with optional surrounding whitespace).
+# This is distinct from PARAGRAPH_PATTERN_RE which includes bullet-handling logic.
+_SIMPLE_PARAGRAPH_RE = re.compile(PARAGRAPH_PATTERN)
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -117,8 +121,6 @@ def group_bullet_paragraph(paragraph: str) -> list:
     '''○ The big red fox is walking down the lane.
     ○ At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = re.compile(PARAGRAPH_PATTERN)
-
     # pytesseract converts some bullet points to standalone "e" characters.
     # Substitute "e" with bullets since they are later used in partition_text
     # to determine list element type.
@@ -128,7 +130,7 @@ def group_bullet_paragraph(paragraph: str) -> list:
     clean_paragraphs = []
     for bullet in bullet_paras:
         if bullet:
-            clean_paragraphs.append(paragraph_pattern_re.sub(" ", bullet))
+            clean_paragraphs.append(_SIMPLE_PARAGRAPH_RE.sub(" ", bullet))
     return clean_paragraphs
 
 
@@ -151,12 +153,6 @@ def group_broken_paragraphs(
     '''The big red fox is walking down the lane.
     At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = (
-        PARAGRAPH_PATTERN
-        if isinstance(PARAGRAPH_PATTERN, re.Pattern)
-        else re.compile(PARAGRAPH_PATTERN)
-    )
-
     paragraphs = paragraph_split.split(text)
     clean_paragraphs = []
     for paragraph in paragraphs:
@@ -177,7 +173,7 @@ def group_broken_paragraphs(
         if all_lines_short:
             clean_paragraphs.extend(line for line in para_split if line.strip())
         else:
-            clean_paragraphs.append(paragraph_pattern_re.sub(" ", paragraph))
+            clean_paragraphs.append(_SIMPLE_PARAGRAPH_RE.sub(" ", paragraph))
 
     return "\n\n".join(clean_paragraphs)
 
@@ -521,7 +517,7 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
     translate_table = {ord("\xa0"): ord(" "), ord("\n"): ord(" ")}
     cleaned_text = text.translate(translate_table)
     # Collapse multiple spaces into one (keeps only single runs)
-    cleaned_text = re.sub(r"([ ]{2,})", " ", cleaned_text)
+    cleaned_text = _MULTI_SPACE_RE.sub(" ", cleaned_text)
 
     cleaned_text = cleaned_text.strip()
 
