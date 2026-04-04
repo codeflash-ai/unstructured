@@ -217,24 +217,23 @@ def sentence_count(text: str, min_length: Optional[int] = None) -> int:
         The min number of words a section needs to be for it to be considered a sentence.
     """
     sentences = sent_tokenize(text)
+    if not min_length:
+        return len(sentences)
     count = 0
-    if min_length:
-        trace_detail = trace_logger.detail  # type: ignore
-        for sentence in sentences:
-            stripped = remove_punctuation(sentence)
-            # Fast token count after punctuation is removed: just split on whitespace
-            word_count = sum(1 for token in stripped.split() if token != ".")
-            if word_count < min_length:
-                trace_detail(
-                    f"Sentence does not exceed {min_length} word tokens, it will not count toward "
-                    "sentence count.\n"
-                    f"{stripped}",
-                )
-                continue
-            count += 1
-    else:
-        for sentence in sentences:
-            count += 1
+    trace_detail = trace_logger.detail  # type: ignore
+    for sentence in sentences:
+        stripped = remove_punctuation(sentence)
+        # After remove_punctuation, all punctuation (including ".") is gone, so just count
+        # non-empty tokens from split.
+        word_count = len(stripped.split())
+        if word_count < min_length:
+            trace_detail(
+                f"Sentence does not exceed {min_length} word tokens, it will not count toward "
+                "sentence count.\n"
+                f"{stripped}",
+            )
+            continue
+        count += 1
     return count
 
 
@@ -298,7 +297,7 @@ def exceeds_cap_ratio(text: str, threshold: float = 0.5) -> bool:
     if len(tokens) == 0:
         return True
 
-    capitalized = sum([word.istitle() or word.isupper() for word in tokens])
+    capitalized = sum(word.istitle() or word.isupper() for word in tokens)
     ratio = capitalized / len(tokens)
     return ratio > threshold
 
