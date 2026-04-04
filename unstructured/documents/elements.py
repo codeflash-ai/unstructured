@@ -485,10 +485,13 @@ class ElementMetadata:
         `__dict__` of this instance, so this be called *before* iterating through `self.__dict__`
         to avoid a mid-iteration mutation.
         """
-        # -- self.__annotations__ is a dict and iterating it produces its keys, which are the
-        # -- field-names we want here.
-        return frozenset(self.__annotations__)
+        return _KNOWN_FIELD_NAMES
 
+
+# Pre-compute known field names once at class-definition time instead of per-instance.
+# ElementMetadata.__annotations__ contains all declared field names; this frozenset is
+# identical for every instance, so computing it once eliminates redundant work.
+_KNOWN_FIELD_NAMES: FrozenSet[str] = frozenset(ElementMetadata.__annotations__)
 
 _field_consolidation_strategies_cache: dict[str, "ConsolidationStrategy"] = {}
 
