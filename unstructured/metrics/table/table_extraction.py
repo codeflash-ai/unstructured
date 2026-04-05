@@ -83,13 +83,30 @@ def deckerd_table_to_html(cells: List[Dict[str, Any]]) -> str:
     header_length = max(cell["w"] for cell in first_row_cells)
     header_rows = set(range(header_length))
     for cell in cells:
+        # Extract values once to avoid repeated dictionary lookups
+        cell_y = cell["y"]
+        cell_x = cell["x"]
+        cell_h = cell["h"]
+        cell_w = cell["w"]
+
+        # Only create lists when spans exist (h > 1 or w > 1)
+        if cell_h == 1:
+            row_nums = [cell_y]
+        else:
+            row_nums = list(range(cell_y, cell_y + cell_h))
+
+        if cell_w == 1:
+            column_nums = [cell_x]
+        else:
+            column_nums = list(range(cell_x, cell_x + cell_w))
+
         cell_data = {
-            "row_nums": list(range(cell["y"], cell["y"] + cell["h"])),
-            "column_nums": list(range(cell["x"], cell["x"] + cell["w"])),
-            "w": cell["w"],
-            "h": cell["h"],
+            "row_nums": row_nums,
+            "column_nums": column_nums,
+            "w": cell_w,
+            "h": cell_h,
             "cell text": cell["content"],
-            "column header": cell["y"] in header_rows,
+            "column header": cell_y in header_rows,
         }
         transformer_cells.append(cell_data)
     # reuse the existing function to convert to HTML
