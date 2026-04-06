@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import re
 import statistics
@@ -196,14 +197,35 @@ def _stdev(scores: List[Optional[float]], rounding: Optional[int] = 3) -> Union[
     Args:
         rounding (int): optional argument that allows user to define decimal points. Default at 3.
     """
-    # Filter out None values
-    scores = [score for score in scores if score is not None]
+    # Use Welford's algorithm for one-pass computation
+    count = 0
+    mean = 0.0
+    M2 = 0.0
+
+    for score in scores:
+        if score is None:
+            continue
+        if math.isnan(score):
+            # Fall back to original behavior for NaN (raises ValueError)
+            scores = [score for score in scores if score is not None]
+            if len(scores) <= 1:
+                return None
+            if not rounding:
+                return statistics.stdev(scores)
+            return round(statistics.stdev(scores), rounding)
+        count += 1
+        delta = score - mean
+        mean += delta / count
+        M2 += delta * (score - mean)
+
     # Proceed only if there are more than one value
-    if len(scores) <= 1:
+    if count <= 1:
         return None
+
+    stdev = math.sqrt(M2 / (count - 1))
     if not rounding:
-        return statistics.stdev(scores)
-    return round(statistics.stdev(scores), rounding)
+        return stdev
+    return round(stdev, rounding)
 
 
 def _pstdev(scores: List[Optional[float]], rounding: Optional[int] = 3) -> Union[float, None]:
