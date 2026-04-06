@@ -63,7 +63,16 @@ def _rename_aggregated_columns(df):
     pandas.DataFrame: A new DataFrame with renamed aggregated columns.
     """
     rename_map = {"_mean": "mean", "_stdev": "stdev", "_pstdev": "pstdev", "_count": "count"}
-    return df.rename(columns=rename_map)
+    # Create a mapping only for columns that exist in the DataFrame and are exact matches
+    col_map = {}
+    for col in df.columns:
+        if col in rename_map:
+            col_map[col] = rename_map[col]
+
+    # If no columns were renamed, just return the original DataFrame
+    if not col_map:
+        return df
+    return df.rename(columns=col_map)
 
 
 def _format_grouping_output(*df):
