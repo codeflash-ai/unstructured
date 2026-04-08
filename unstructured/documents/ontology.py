@@ -18,6 +18,8 @@ from __future__ import annotations
 import uuid
 from copy import copy
 from enum import Enum
+from html import unescape
+from html.parser import HTMLParser
 from typing import Any, List, Optional
 
 from bs4 import BeautifulSoup
@@ -105,7 +107,7 @@ class OntologyElement(BaseModel):
             )
             return children_text
 
-        text = BeautifulSoup(self.to_html(), "html.parser").get_text().strip()
+        text = _html_to_text(self.to_html())
 
         if add_img_alt_text and self.html_tag_name == "img" and "alt" in self.additional_attributes:
             text += f" {self.additional_attributes.get('alt', '')}"
@@ -168,6 +170,13 @@ def remove_ids_and_class_from_table(
         if tag.name.lower() not in class_attr_to_keep:  # type: ignore
             tag.attrs.pop("class", None)  # type: ignore
     return soup
+
+
+def _html_to_text(html_str: str) -> str:
+    parser = _HTMLTextExtractor()
+    parser.feed(html_str)
+    parser.close()
+    return parser.get_text()
 
 
 # Define specific elements
@@ -614,6 +623,28 @@ class Watermark(OntologyElement):
     description: str = Field("A faint design made in paper during manufacture", frozen=True)
     elementType: ElementTypeEnum = Field(ElementTypeEnum.document_specific, frozen=True)
     allowed_tags: List[str] = Field(["div"], frozen=True)
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """
+    Lightweight HTML -> text extractor that collects text nodes.
+    This avoids the overhead of BeautifulSoup while matching the
+    behavior needed by the original implementation (collect text
+    and unescape HTML entities).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        # Only append non-empty data to minimize memory churn
+        if data:
+            self._parts.append(data)
+
+    def get_text(self) -> str:
+        # Join without extra separators to mimic BeautifulSoup.get_text()
+        return unescape("".join(self._parts)).strip()
 
 
 class Stamp(OntologyElement):
