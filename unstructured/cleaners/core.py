@@ -21,6 +21,14 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+# Compile PARAGRAPH_PATTERN once to avoid repeated compilation on every call.
+# This preserves the original behavior of using an existing re.Pattern if provided.
+_paragraph_pattern_re: re.Pattern[str] = (
+    PARAGRAPH_PATTERN
+    if isinstance(PARAGRAPH_PATTERN, re.Pattern)
+    else re.compile(PARAGRAPH_PATTERN)
+)
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -153,11 +161,8 @@ def group_broken_paragraphs(
     '''The big red fox is walking down the lane.
     At the end of the land the fox met a bear.'''
     """
-    paragraph_pattern_re = (
-        PARAGRAPH_PATTERN
-        if isinstance(PARAGRAPH_PATTERN, re.Pattern)
-        else re.compile(PARAGRAPH_PATTERN)
-    )
+    # Use the precompiled module-level pattern to avoid recompiling on each call.
+    paragraph_pattern_re = _paragraph_pattern_re
 
     paragraphs = paragraph_split.split(text)
     clean_paragraphs = []
@@ -175,9 +180,20 @@ def group_broken_paragraphs(
         #     Version 2.0, January 2004
         #     http://www.apache.org/licenses/
         para_split = line_split.split(paragraph)
-        all_lines_short = all(len(line.strip().split(" ")) < 5 for line in para_split)
+
+        # Avoid creating intermediate iterators and repeated splits by loop with early exit
+        all_lines_short = True
+        for line in para_split:
+            # Preserve original behavior: use strip().split(" ")
+            if len(line.strip().split(" ")) >= 5:
+                all_lines_short = False
+                break
+
         if all_lines_short:
-            clean_paragraphs.extend(line for line in para_split if line.strip())
+            # Preserve original trimming behavior for each line
+            for line in para_split:
+                if line.strip():
+                    clean_paragraphs.append(line)
         else:
             clean_paragraphs.append(paragraph_pattern_re.sub(" ", paragraph))
 
@@ -215,17 +231,22 @@ def blank_line_grouper(
     paragraph_split: re.Pattern = DOUBLE_PARAGRAPH_PATTERN_RE,
 ) -> str:
     """
-    Concatenates text document that has blank-line paragraph break pattern
+        Concatenates text document that has blank-line paragraph break pattern
 
-    For example,
+        For example,
 
-    Vestibulum auctor dapibus neque.
+        Vestibulum auctor dapibus neque.
+
+        Nunc dignissim risus id metus.
+
+        Will be returned as:
+
+        Vestibulum auctor dapibus neque.
 
     Nunc dignissim risus id metus.
 
-    Will be returned as:
 
-    Vestibulum auctor dapibus neque.\n\nNunc dignissim risus id metus.\n\n
+
 
     """
     return group_broken_paragraphs(text)
