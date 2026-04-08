@@ -37,12 +37,18 @@ class ObjectDetectionPerClassEvaluation:
 
     @classmethod
     def from_tensors(cls, ap, precision, recall, f1, class_labels):
-        f1_score = {class_labels[i]: f1[i] for i in range(len(class_labels))}
-        precision = {class_labels[i]: precision[i] for i in range(len(class_labels))}
-        recall = {class_labels[i]: recall[i] for i in range(len(class_labels))}
-        m_ap = {class_labels[i]: ap[i] for i in range(len(class_labels))}
+        f1_score = {}
+        precision_dict = {}
+        recall_dict = {}
+        m_ap = {}
 
-        return cls(f1_score, precision, recall, m_ap)
+        for i, label in enumerate(class_labels):
+            f1_score[label] = f1[i]
+            precision_dict[label] = precision[i]
+            recall_dict[label] = recall[i]
+            m_ap[label] = ap[i]
+
+        return cls(f1_score, precision_dict, recall_dict, m_ap)
 
 
 class ObjectDetectionEvalProcessor:
