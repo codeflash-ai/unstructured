@@ -112,7 +112,7 @@ def _write_to_file(
     if "count" in df.columns:
         df["count"] = df["count"].astype(int)
     if "filename" in df.columns and "connector" in df.columns:
-        df.sort_values(by=["connector", "filename"], inplace=True)
+        df = df.sort_values(by=["connector", "filename"])
     if not overwrite:
         filename = _get_non_duplicated_filename(directory, filename)
     df.to_csv(

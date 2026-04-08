@@ -38,6 +38,12 @@ from unstructured.metrics.utils import (
     _write_to_file,
 )
 
+_FILE_READERS = {
+    ".csv": lambda path: pd.read_csv(path, header=None),
+    ".tsv": lambda path: pd.read_csv(path, sep="\t"),
+    ".txt": lambda path: pd.read_csv(path, sep="\t", header=None),
+}
+
 logger = logging.getLogger("unstructured.eval")
 handler = logging.StreamHandler()
 handler.name = "eval_log_handler"
@@ -616,36 +622,34 @@ def filter_metrics(
     if isinstance(data_input, str):
         if not os.path.exists(data_input):
             raise FileNotFoundError(f"File {data_input} not found.")
-        if data_input.endswith(".csv"):
-            df = pd.read_csv(data_input, header=None)
-        elif data_input.endswith(".tsv"):
-            df = pd.read_csv(data_input, sep="\t")
-        elif data_input.endswith(".txt"):
-            df = pd.read_csv(data_input, sep="\t", header=None)
-        else:
+
+        ext = os.path.splitext(data_input)[1]
+        reader = _FILE_READERS.get(ext)
+        if reader is None:
             raise ValueError("Please provide a .csv or .tsv file.")
+        df = reader(data_input)
     else:
         df = data_input
 
     if isinstance(filter_list, str):
         if not os.path.exists(filter_list):
             raise FileNotFoundError(f"File {filter_list} not found.")
-        if filter_list.endswith(".csv"):
-            filter_df = pd.read_csv(filter_list, header=None)
-        elif filter_list.endswith(".tsv"):
-            filter_df = pd.read_csv(filter_list, sep="\t")
-        elif filter_list.endswith(".txt"):
-            filter_df = pd.read_csv(filter_list, sep="\t", header=None)
-        else:
+
+        ext = os.path.splitext(filter_list)[1]
+        reader = _FILE_READERS.get(ext)
+        if reader is None:
             raise ValueError("Please provide a .csv or .tsv file.")
-        filter_list = filter_df.iloc[:, 0].astype(str).values.tolist()
+        filter_df = reader(filter_list)
+        filter_list = filter_df.iloc[:, 0].tolist()
     elif not isinstance(filter_list, list):
         raise ValueError("Please provide a List of strings or path to file.")
 
     if filter_by not in df.columns:
         raise ValueError("`filter_by` key does not exists in the data provided.")
 
-    res = df[df[filter_by].isin(filter_list)]
+    # Convert filter_list to set for O(1) lookups in isin()
+    filter_set = set(filter_list)
+    res = df[df[filter_by].isin(filter_set)]
 
     if res.empty:
         raise SystemExit("No common file names between data_input and filter_list. Exiting.")
