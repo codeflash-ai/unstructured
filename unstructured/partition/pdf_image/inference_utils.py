@@ -96,12 +96,12 @@ def merge_text_regions(regions: TextRegions) -> TextRegion:
     if not regions:
         raise ValueError("The text regions to be merged must be provided.")
 
-    min_x1 = regions.x1.min().astype(float)
-    min_y1 = regions.y1.min().astype(float)
-    max_x2 = regions.x2.max().astype(float)
-    max_y2 = regions.y2.max().astype(float)
+    min_x1 = float(regions.x1.min())
+    min_y1 = float(regions.y1.min())
+    max_x2 = float(regions.x2.max())
+    max_y2 = float(regions.y2.max())
 
-    merged_text = " ".join([text for text in regions.texts if text])
+    merged_text = " ".join(filter(None, regions.texts))
     # assumption is the regions has the same source
     source = regions.sources[0]
 
