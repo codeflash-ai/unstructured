@@ -133,6 +133,10 @@ def sort_page_elements(
     if not page_elements:
         return []
 
+    # If there's nothing to reorder, return early to avoid overhead.
+    if len(page_elements) <= 1:
+        return page_elements
+
     coordinates_list = [el.metadata.coordinates for el in page_elements]
 
     def _coords_ok(strict_points: bool):
@@ -155,32 +159,52 @@ def sort_page_elements(
     if sort_mode == SORT_MODE_XY_CUT:
         if not _coords_ok(strict_points=True):
             return page_elements
-        shrunken_bboxes = []
-        for coords in coordinates_list:
+
+        n = len(coordinates_list)
+        # Preallocate an integer ndarray for shrunken bboxes to avoid repeated Python list appends
+        shrunken_bboxes = np.empty((n, 4), dtype=int)
+
+        for i, coords in enumerate(coordinates_list):
             bbox = coordinates_to_bbox(coords)
             shrunken_bbox = shrink_bbox(bbox, shrink_factor)
-            shrunken_bboxes.append(shrunken_bbox)
+            shrunken_bboxes[i, 0] = shrunken_bbox[0]
+            shrunken_bboxes[i, 1] = shrunken_bbox[1]
+            shrunken_bboxes[i, 2] = shrunken_bbox[2]
+            shrunken_bboxes[i, 3] = shrunken_bbox[3]
 
         res: list[int] = []
         xy_cut_sorting_func = (
             recursive_xy_cut_swapped if xy_cut_primary_direction == "x" else recursive_xy_cut
         )
         xy_cut_sorting_func(
-            np.asarray(shrunken_bboxes).astype(int),
-            np.arange(len(shrunken_bboxes)),
+            shrunken_bboxes,
+            np.arange(n, dtype=int),
             res,
         )
         sorted_page_elements = [page_elements[i] for i in res]
     elif sort_mode == SORT_MODE_BASIC:
         if not _coords_ok(strict_points=False):
             return page_elements
-        sorted_page_elements = sorted(
-            page_elements,
-            key=lambda el: (
-                el.metadata.coordinates.points[0][1] if el.metadata.coordinates else float("inf"),
-                el.metadata.coordinates.points[0][0] if el.metadata.coordinates else float("inf"),
-            ),
-        )
+
+        # Compute keys once (decorate) to avoid repeated attribute lookups during sort
+        decorated: list[tuple[tuple[float, float], Element]] = []
+        inf = float("inf")
+        for el in page_elements:
+            coords = el.metadata.coordinates
+            if coords:
+                pts = coords.points
+                if pts:
+                    y = pts[0][1]
+                    x = pts[0][0]
+                else:
+                    y = inf
+                    x = inf
+            else:
+                y = inf
+                x = inf
+            decorated.append(((y, x), el))
+        decorated.sort(key=lambda t: t[0])
+        sorted_page_elements = [elem for (_k, elem) in decorated]
     else:
         sorted_page_elements = page_elements
 
