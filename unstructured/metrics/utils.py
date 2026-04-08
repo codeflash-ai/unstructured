@@ -143,14 +143,25 @@ def _uniquity_file(file_list, target_filename) -> str:
     Returns a string of file name in the format of `filename (<min number>).ext`.
     """
     original_filename, extension = target_filename.rsplit(".", 1)
-    pattern = rf"^{re.escape(original_filename)}(?: \((\d+)\))?\.{re.escape(extension)}$"
-    duplicated_files = sorted([f for f in file_list if re.match(pattern, f)], key=_sorting_key)
+    # Build string patterns to avoid regex overhead for each candidate file.
+    base = original_filename + "." + extension
+    prefix = original_filename + " ("
+    suffix = ")." + extension
+    prefix_len = len(prefix)
+    suffix_len = len(suffix)
 
     numbers = []
-    for file in duplicated_files:
-        match = re.search(r"\((\d+)\)", file)
-        if match:
-            numbers.append(int(match.group(1)))
+    for file in file_list:
+        # Exact match to original (no number) - original behavior doesn't add 0 to numbers
+        if file == base:
+            continue
+
+        # Fast string checks to match pattern original_filename (<digits>).extension
+        if file.startswith(prefix) and file.endswith(suffix):
+            # Extract the inner digits portion without regex
+            inner = file[prefix_len:-suffix_len]
+            if inner and inner.isdigit():
+                numbers.append(int(inner))
 
     numbers.sort()
 
