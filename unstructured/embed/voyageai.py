@@ -206,7 +206,7 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
         Returns:
             Embedding vector.
         """
-        client = self.config.get_client()
+        client = self._get_client_cached()
         batch_embeddings = self._embed_batch([query], client, input_type="query")
         return batch_embeddings[0]
 
@@ -235,3 +235,9 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
             element.embeddings = embeddings[i]
             elements_w_embedding.append(element)
         return elements
+
+    def _get_client_cached(self) -> "Client":
+        """Lazily create and cache a VoyageAI client on the encoder instance."""
+        if not hasattr(self, "_client"):
+            self._client = self.config.get_client()
+        return self._client
