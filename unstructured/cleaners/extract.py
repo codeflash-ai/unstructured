@@ -117,25 +117,27 @@ def extract_ordered_bullets(text) -> tuple:
     a.1 This is a very important point -> ("a", "1", None)
     """
     a, b, c, temp = None, None, None, None
-    text_sp = text.split()
-    if any(["." not in text_sp[0], ".." in text_sp[0]]):
+    text_sp = text.split(None, 1)
+    # Preserve original behavior: allow IndexError for empty/whitespace-only text
+    token = text_sp[0]
+
+    # Avoid allocating a list for any([...]) and avoid regex
+    if "." not in token or ".." in token:
         return a, b, c
 
-    bullet = re.split(pattern=r"[\.]", string=text_sp[0])
-    if not bullet[-1]:
-        del bullet[-1]
+    bullet = token.split(".")
+    # Remove trailing empty segment if the token ended with a single dot
+    if bullet and bullet[-1] == "":
+        bullet.pop()
 
     if len(bullet[0]) > 2:
         return a, b, c
 
-    a, *temp = bullet
-    if temp:
-        try:
-            b, c, *_ = temp
-        except ValueError:
-            b = temp
-        b = "".join(b)
-        c = "".join(c) if c else None
+    a = bullet[0]
+    if len(bullet) > 1:
+        b = bullet[1]
+        # Match original behavior: convert empty c to None
+        c = bullet[2] if len(bullet) > 2 and bullet[2] else None
     return a, b, c
 
 
