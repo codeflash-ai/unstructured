@@ -92,7 +92,11 @@ def _count_predicted_tables(matched_indices: List[int]) -> int:
       The count of matched predicted tables.
 
     """
-    return sum(1 for idx in matched_indices if idx >= 0)
+    count = 0
+    for idx in matched_indices:
+        if idx >= 0:
+            count += 1
+    return count
 
 
 def calculate_table_detection_metrics(
