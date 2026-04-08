@@ -241,34 +241,47 @@ def vis_polygon(img, points, thickness=2, color=None):
     tl2tr_color = color
     tr2br_color = color
     bl2tl_color = color
+
+    # Extract and use points progressively to maintain original error behavior
+    p0 = points[0]
+    p1 = points[1]
+    t0 = (p0[0], p0[1])
+    t1 = (p1[0], p1[1])
+
     cv2.line(
         img,
-        (points[0][0], points[0][1]),
-        (points[1][0], points[1][1]),
+        t0,
+        t1,
         color=tl2tr_color,
         thickness=thickness,
     )
 
+    p2 = points[2]
+    t2 = (p2[0], p2[1])
+
     cv2.line(
         img,
-        (points[1][0], points[1][1]),
-        (points[2][0], points[2][1]),
+        t1,
+        t2,
         color=tr2br_color,
         thickness=thickness,
     )
 
+    p3 = points[3]
+    t3 = (p3[0], p3[1])
+
     cv2.line(
         img,
-        (points[2][0], points[2][1]),
-        (points[3][0], points[3][1]),
+        t2,
+        t3,
         color=br2bl_color,
         thickness=thickness,
     )
 
     cv2.line(
         img,
-        (points[3][0], points[3][1]),
-        (points[0][0], points[0][1]),
+        t3,
+        t0,
         color=bl2tl_color,
         thickness=thickness,
     )
