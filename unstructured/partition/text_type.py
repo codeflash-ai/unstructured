@@ -164,7 +164,18 @@ def is_possible_title(
 
 def is_bulleted_text(text: str) -> bool:
     """Checks to see if the section of text is part of a bulleted list."""
-    return UNICODE_BULLETS_RE.match(text.strip()) is not None
+    # Avoid creating a full stripped string copy (text.strip()) for performance:
+    # find the first non-whitespace character index and run the compiled regex
+    # match starting at that position. This preserves the original semantics of
+    # matching against stripped text while reducing memory allocations.
+    i = 0
+    n = len(text)
+    while i < n and text[i].isspace():
+        i += 1
+    if i == n:
+        return False
+    # Use the compiled regex match with a start position to avoid substring allocation.
+    return UNICODE_BULLETS_RE.match(text, pos=i) is not None
 
 
 def contains_us_phone_number(text: str) -> bool:
