@@ -190,8 +190,23 @@ def contains_verb(text: str) -> bool:
 def contains_english_word(text: str) -> bool:
     """Checks to see if the text contains an English word."""
     text = text.lower()
-    words = ENGLISH_WORD_SPLIT_RE.split(text)
-    for word in words:
+    prev = 0
+    for m in ENGLISH_WORD_SPLIT_RE.finditer(text):
+        if m.start() > prev:
+            word = text[prev : m.start()]
+            # NOTE(Crag): Remove any non-lowercase alphabetical
+            # characters.  These removed chars will usually be trailing or
+            # leading characters not already matched in ENGLISH_WORD_SPLIT_RE.
+            # The possessive case is also generally ok:
+            #   "beggar's" -> "beggars" (still an english word)
+            # and of course:
+            #   "'beggars'"-> "beggars" (also still an english word)
+            word = NON_LOWERCASE_ALPHA_RE.sub("", word)
+            if len(word) > 1 and word in ENGLISH_WORDS:
+                return True
+        prev = m.end()
+    if prev < len(text):
+        word = text[prev:]
         # NOTE(Crag): Remove any non-lowercase alphabetical
         # characters.  These removed chars will usually be trailing or
         # leading characters not already matched in ENGLISH_WORD_SPLIT_RE.
