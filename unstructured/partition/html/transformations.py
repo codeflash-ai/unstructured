@@ -367,17 +367,22 @@ def parse_html_to_ontology_element(soup: Tag, recursion_depth: int = 1) -> ontol
 
     if should_unwrap_html:
         text = ""
-        children = [
-            (
-                parse_html_to_ontology_element(child, recursion_depth=recursion_depth + 1)
-                if isinstance(child, Tag)
-                else ontology.Paragraph(text=str(child).strip())
-            )
-            for child in soup.children
-            if str(child).strip()
-        ]
+        children = []
+        # Avoid repeated str(child).strip() for Tag children by handling types explicitly.
+        for child in soup.children:
+            if isinstance(child, Tag):
+                # keep Tag children (original code included them if str(child).strip() truthy,
+                # and Tag stringification is non-empty if tag exists)
+                children.append(
+                    parse_html_to_ontology_element(child, recursion_depth=recursion_depth + 1)
+                )
+            else:
+                child_text = str(child).strip()
+                if child_text:
+                    children.append(ontology.Paragraph(text=child_text))
     else:
-        text = "\n".join([str(content).strip() for content in soup.contents]).strip()
+        # Use a generator to avoid building an intermediate list
+        text = "\n".join(str(content).strip() for content in soup.contents).strip()
         children = []
 
     output_element = ontology_class(
@@ -406,26 +411,27 @@ def extract_tag_and_ontology_class_from_tag(
     """
     html_tag, element_class = None, None
 
+    # Cache class attribute lookup to avoid repeated attribute access and indexing
+    class_list = soup.get("class")
+
     # Scenario 1: Valid Ontology Element
-    if soup.attrs.get("class"):
+    if class_list:
+        # Use the first class name (original behavior)
+        class_name = class_list[0]
         html_tag, element_class = (
             soup.name,
-            HTML_TAG_AND_CSS_NAME_TO_ELEMENT_TYPE_MAP.get((soup.name, soup.attrs["class"][0])),
+            HTML_TAG_AND_CSS_NAME_TO_ELEMENT_TYPE_MAP.get((soup.name, class_name)),
         )
 
     # Scenario 2: HTML tag incorrect, CSS class correct
     # Fallback to css name selector and overwrite html tag
-    if (
-        not element_class
-        and soup.attrs.get("class")
-        and soup.attrs["class"][0] in CSS_CLASS_TO_ELEMENT_TYPE_MAP
-    ):
-        element_class = CSS_CLASS_TO_ELEMENT_TYPE_MAP.get(soup.attrs["class"][0])
+    if not element_class and class_list and class_list[0] in CSS_CLASS_TO_ELEMENT_TYPE_MAP:
+        element_class = CSS_CLASS_TO_ELEMENT_TYPE_MAP.get(class_list[0])
         html_tag = element_class().allowed_tags[0]
 
     # Scenario 3: <input> elements, handled explicitly based on their 'type' attribute
     if not element_class and soup.name == "input":
-        input_type = (str(soup.get("type")) or "").lower()
+        input_type = (soup.get("type") or "").lower()
         if input_type == "checkbox":
             element_class = ontology.Checkbox
         elif input_type == "radio":
@@ -451,8 +457,11 @@ def extract_tag_and_ontology_class_from_tag(
 
     # Scenario 6: UncategorizedText has image and no text
     # Typically, this happens with a span or div tag with an image inside
-    if element_class == ontology.UncategorizedText and soup.find("img") and not soup.text.strip():
-        element_class = ontology.Image
+    if element_class == ontology.UncategorizedText:
+        # Compute stripped text once and skip expensive find if there's text
+        stripped_text = soup.get_text(strip=True)
+        if not stripped_text and soup.find("img"):
+            element_class = ontology.Image
 
     return html_tag, element_class
 
@@ -468,13 +477,14 @@ def get_escaped_attributes(soup: Tag) -> dict[str, str | list[str]]:
         dict: A dictionary with escaped attribute names and values.
     """
     escaped_attrs: dict[str, str | list[str]] = {}
+    escape = html.escape
     for key, value in soup.attrs.items():
-        escaped_key = html.escape(key)
+        escaped_key = escape(key)
         escaped_value = None
         if value:
             if isinstance(value, list):
-                escaped_value = [html.escape(v) for v in value]
+                escaped_value = [escape(v) for v in value]
             else:
-                escaped_value = html.escape(value)
+                escaped_value = escape(value)
         escaped_attrs[escaped_key] = escaped_value
     return escaped_attrs
