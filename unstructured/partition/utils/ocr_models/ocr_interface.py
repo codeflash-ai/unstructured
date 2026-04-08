@@ -20,6 +20,11 @@ if TYPE_CHECKING:
     from unstructured_inference.inference.elements import TextRegions
     from unstructured_inference.inference.layoutelement import LayoutElements
 
+QNAMES_BY_KEYNAME = {
+    OCR_AGENT_TESSERACT_OLD: OCR_AGENT_TESSERACT,
+    OCR_AGENT_PADDLE_OLD: OCR_AGENT_PADDLE,
+}
+
 
 class OCRAgent(ABC):
     """Defines the interface for an Optical Character Recognition (OCR) service."""
@@ -81,12 +86,7 @@ class OCRAgent(ABC):
         """
         ocr_agent_qname = env_config.OCR_AGENT
 
-        # -- map legacy method of setting OCR agent by key-name to full qname --
-        qnames_by_keyname = {
-            OCR_AGENT_TESSERACT_OLD: OCR_AGENT_TESSERACT,
-            OCR_AGENT_PADDLE_OLD: OCR_AGENT_PADDLE,
-        }
-        if qname_mapped_from_keyname := qnames_by_keyname.get(ocr_agent_qname.lower()):
+        if qname_mapped_from_keyname := QNAMES_BY_KEYNAME.get(ocr_agent_qname.lower()):
             logger.warning(
                 f"OCR agent name {ocr_agent_qname} is outdated and will be removed in a future"
                 f" release; please use {qname_mapped_from_keyname} instead"
