@@ -470,11 +470,11 @@ def get_escaped_attributes(soup: Tag) -> dict[str, str | list[str]]:
     escaped_attrs: dict[str, str | list[str]] = {}
     for key, value in soup.attrs.items():
         escaped_key = html.escape(key)
-        escaped_value = None
-        if value:
-            if isinstance(value, list):
-                escaped_value = [html.escape(v) for v in value]
-            else:
-                escaped_value = html.escape(value)
-        escaped_attrs[escaped_key] = escaped_value
+        if not value:
+            escaped_attrs[escaped_key] = None
+            continue
+        if isinstance(value, list):
+            escaped_attrs[escaped_key] = list(map(html.escape, value))
+        else:
+            escaped_attrs[escaped_key] = html.escape(value)
     return escaped_attrs
