@@ -6,6 +6,7 @@ from itertools import chain
 from typing import Sequence, Type
 
 from bs4 import BeautifulSoup, Tag
+from bs4.element import Tag
 
 from unstructured.documents import elements, ontology
 from unstructured.documents.mappings import (
@@ -300,10 +301,25 @@ def parse_html_to_ontology(html_code: str) -> ontology.OntologyElement:
 
 def remove_empty_divs_from_html_content(html_content: str) -> str:
     soup = BeautifulSoup(html_content, "html.parser")
-    divs = soup.find_all("div")
-    for div in reversed(divs):
-        if not div.attrs:
-            div.unwrap()
+    # Iterative post-order traversal: visit children before parents
+    # This avoids building a separate list of all <div> tags and reduces peak memory
+    stack: list[tuple[object, bool]] = []
+    for node in reversed(soup.contents):
+        stack.append((node, False))
+
+    while stack:
+        node, visited = stack.pop()
+        if not visited and isinstance(node, Tag):
+            stack.append((node, True))
+            # push children in reverse order so they are processed left-to-right
+            for child in reversed(node.contents):
+                stack.append((child, False))
+            continue
+
+        # Post-order processing: if this node is a <div> with no attributes, unwrap it
+        if isinstance(node, Tag) and node.name == "div" and not node.attrs:
+            node.unwrap()
+
     return str(soup)
 
 
