@@ -37,7 +37,13 @@ class OctoAIEmbeddingEncoder(BaseEmbeddingEncoder):
     _exemplary_embedding: Optional[List[float]] = field(init=False, default=None)
 
     def get_exemplary_embedding(self) -> List[float]:
-        return self.embed_query("Q")
+        cached = getattr(self, "_exemplary_embedding", None)
+        if cached is not None:
+            return cached
+        embedding = self.embed_query("Q")
+        # Cache the exemplary embedding to avoid repeated expensive calls
+        self._exemplary_embedding = embedding
+        return embedding
 
     def initialize(self):
         pass
