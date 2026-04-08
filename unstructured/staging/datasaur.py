@@ -2,6 +2,13 @@ from typing import Any, Dict, List, Optional
 
 from unstructured.documents.elements import Text
 
+_DATASAUR_REQUIRED_FIELDS = (
+    ("text", str),
+    ("type", str),
+    ("start_idx", int),
+    ("end_idx", int),
+)
+
 
 def stage_for_datasaur(
     elements: List[Text],
@@ -26,10 +33,11 @@ def stage_for_datasaur(
 
 def _validate_datasaur_entity(entity: Dict[str, Any]):
     """Raises an error if the Datasaur entity is invalid."""
-    keys_and_types = {"text": str, "type": str, "start_idx": int, "end_idx": int}
-
-    for key, _type in keys_and_types.items():
-        if key not in entity:
+    for key, _type in _DATASAUR_REQUIRED_FIELDS:
+        try:
+            value = entity[key]
+        except KeyError:
             raise ValueError(f"Key '{key}' was expected but not present in the Datasaur entity.")
-        if not isinstance(entity[key], _type):
+
+        if not isinstance(value, _type):
             raise ValueError(f"Expected type {_type} for {key}. Got {type(key)}.")
