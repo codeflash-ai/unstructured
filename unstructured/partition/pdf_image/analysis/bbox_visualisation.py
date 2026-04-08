@@ -4,6 +4,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Generator, List, Optional, TypeVar, Union
@@ -59,6 +60,7 @@ class BBox:
     labels: Optional[BboxLabels] = None
 
 
+@lru_cache(maxsize=512)
 def get_rgb_color(color: str) -> tuple[int, int, int]:
     """Convert a color name to RGB values.
 
