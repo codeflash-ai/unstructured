@@ -45,7 +45,7 @@ class OCRAgentTesseract(OCRAgent):
         return True
 
     def get_text_from_image(self, image: PILImage.Image) -> str:
-        return unstructured_pytesseract.image_to_string(np.array(image), lang=self.language)
+        return unstructured_pytesseract.image_to_string(np.asarray(image), lang=self.language)
 
     def get_layout_from_image(self, image: PILImage.Image) -> TextRegions:
         """Get the OCR regions from image as a list of text regions with tesseract."""
