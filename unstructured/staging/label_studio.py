@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
@@ -84,18 +83,13 @@ class LabelStudioAnnotation:
     was_canceled: bool = False  # Indicates whether or not the annotation was canceled
 
     def to_dict(self):
-        annotation_dict = deepcopy(self.__dict__)
+        annotation_dict = dict(self.__dict__)
         annotation_dict["result"] = [r.to_dict() for r in annotation_dict["result"]]
         if "reviews" in annotation_dict and annotation_dict["reviews"] is not None:
             annotation_dict["reviews"] = [r.to_dict() for r in annotation_dict["reviews"]]
 
         # NOTE(robinson) - Removes keys for any fields that defaulted to None
-        _annotation_dict = deepcopy(annotation_dict)
-        for key, value in annotation_dict.items():
-            if value is None:
-                _annotation_dict.pop(key)
-
-        return _annotation_dict
+        return {k: v for k, v in annotation_dict.items() if v is not None}
 
 
 @dataclass
