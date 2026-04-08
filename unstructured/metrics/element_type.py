@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 
 from typing_extensions import TypeAlias
 
@@ -26,18 +27,14 @@ def get_element_type_frequency(
     Returns:
         Element type and its frequency in dictionary format.
     """
-    frequency: dict[tuple[str, int | None], int] = {}
     if len(elements) == 0:
-        return frequency
-    for element in json.loads(elements):
-        type = element.get("type")
-        category_depth = element["metadata"].get("category_depth")
-        key = (type, category_depth)
-        if key not in frequency:
-            frequency[key] = 1
-        else:
-            frequency[key] += 1
-    return frequency
+        return {}
+    return dict(
+        Counter(
+            (element.get("type"), element["metadata"].get("category_depth"))
+            for element in json.loads(elements)
+        )
+    )
 
 
 def calculate_element_type_percent_match(
