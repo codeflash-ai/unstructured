@@ -15,6 +15,19 @@ from unstructured.documents.mappings import (
     ONTOLOGY_CLASS_TO_UNSTRUCTURED_ELEMENT_TYPE,
 )
 
+_TEXT_CLASSES = (
+    ontology.NarrativeText,
+    ontology.Quote,
+    ontology.Paragraph,
+    ontology.Footnote,
+    ontology.FootnoteReference,
+    ontology.Citation,
+    ontology.Bibliography,
+    ontology.Glossary,
+)
+
+_TEXT_CATEGORIES = frozenset([ontology.ElementTypeEnum.metadata])
+
 RECURSION_LIMIT = 50
 
 
@@ -185,23 +198,10 @@ def can_unstructured_elements_be_merged(
 
 def is_text_element(ontology_element: ontology.OntologyElement) -> bool:
     """Categories or classes that we want to combine with inline text"""
-
-    text_classes = [
-        ontology.NarrativeText,
-        ontology.Quote,
-        ontology.Paragraph,
-        ontology.Footnote,
-        ontology.FootnoteReference,
-        ontology.Citation,
-        ontology.Bibliography,
-        ontology.Glossary,
-    ]
-    text_categories = [ontology.ElementTypeEnum.metadata]
-
-    if any(isinstance(ontology_element, class_) for class_ in text_classes):
-        return True
-
-    return any(ontology_element.elementType == category for category in text_categories)
+    return (
+        isinstance(ontology_element, _TEXT_CLASSES)
+        or ontology_element.elementType in _TEXT_CATEGORIES
+    )
 
 
 def is_inline_element(ontology_element: ontology.OntologyElement) -> bool:
