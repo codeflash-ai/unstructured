@@ -21,6 +21,10 @@ from unstructured.nlp.patterns import (
     UNICODE_BULLETS_RE_0W,
 )
 
+_MULTI_SPACE_RE = re.compile(r"([ ]{2,})")
+
+_TRANSLATE_TABLE = {ord("\xa0"): ord(" "), ord("\n"): ord(" ")}
+
 
 def clean_non_ascii_chars(text) -> str:
     """Cleans non-ascii characters from unicode string.
@@ -450,10 +454,9 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
     """
 
     # Replace non-breaking space and newlines with a space (using translation table for speed)
-    translate_table = {ord("\xa0"): ord(" "), ord("\n"): ord(" ")}
-    cleaned_text = text.translate(translate_table)
+    cleaned_text = text.translate(_TRANSLATE_TABLE)
     # Collapse multiple spaces into one (keeps only single runs)
-    cleaned_text = re.sub(r"([ ]{2,})", " ", cleaned_text)
+    cleaned_text = _MULTI_SPACE_RE.sub(" ", cleaned_text)
 
     cleaned_text = cleaned_text.strip()
 
@@ -461,25 +464,23 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
 
     cleaned_len = len(cleaned_text)
 
-    ws_chars = {"\xa0", "\n"}  # For a quick lookup
-
     distance = 0
-    original_index = 0
     cleaned_index = 0
 
-    while cleaned_index < cleaned_len:
-        c_orig = text[original_index]
-        c_clean = cleaned_text[cleaned_index]
-
-        if c_orig == c_clean or (c_orig in ws_chars and c_clean == " "):
+    # Iterate over the original text once, updating cleaned_index as we match characters.
+    # This avoids repeated indexing into the original string and reduces Python overhead.
+    txt = text  # local binding
+    ct = cleaned_text  # local binding
+    for c_orig in txt:
+        if cleaned_index >= cleaned_len:
+            break
+        c_clean = ct[cleaned_index]
+        # Preserve original behavior: treat non-breaking space and newline as equivalent to a normal space
+        if c_orig == c_clean or (c_clean == " " and (c_orig == "\xa0" or c_orig == "\n")):
             moved_indices[cleaned_index] = distance
-            original_index += 1
             cleaned_index += 1
-            continue
-
-        distance += 1
-        moved_indices[cleaned_index] = distance
-        original_index += 1
+        else:
+            distance += 1
 
     moved_indices[cleaned_index:] = distance
 
