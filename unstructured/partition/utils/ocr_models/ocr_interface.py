@@ -36,23 +36,8 @@ class OCRAgent(ABC):
     @staticmethod
     @functools.lru_cache(maxsize=env_config.OCR_AGENT_CACHE_SIZE)
     def get_instance(ocr_agent_module: str, language: str) -> "OCRAgent":
-        module_name, class_name = ocr_agent_module.rsplit(".", 1)
-        if module_name not in OCR_AGENT_MODULES_WHITELIST:
-            raise ValueError(
-                f"Environment variable OCR_AGENT module name {module_name} must be set to a "
-                f"whitelisted module part of {OCR_AGENT_MODULES_WHITELIST}."
-            )
-
-        try:
-            module = importlib.import_module(module_name)
-            loaded_class = getattr(module, class_name)
-            return loaded_class(language)
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Failed to get OCRAgent instance: {e}")
-            raise RuntimeError(
-                "Could not get the OCRAgent instance. Please check the OCR package and the "
-                "OCR_AGENT environment variable."
-            )
+        loaded_class = OCRAgent._load_ocr_class(ocr_agent_module)
+        return loaded_class(language)
 
     @abstractmethod
     def get_layout_elements_from_image(self, image: PILImage.Image) -> LayoutElements:
@@ -94,3 +79,24 @@ class OCRAgent(ABC):
             return qname_mapped_from_keyname
 
         return ocr_agent_qname
+
+    @staticmethod
+    @functools.lru_cache(maxsize=128)
+    def _load_ocr_class(ocr_agent_module: str):
+        """Cache the class loading step separately from instance creation."""
+        module_name, class_name = ocr_agent_module.rsplit(".", 1)
+        if module_name not in OCR_AGENT_MODULES_WHITELIST:
+            raise ValueError(
+                f"Environment variable OCR_AGENT module name {module_name} must be set to a "
+                f"whitelisted module part of {OCR_AGENT_MODULES_WHITELIST}."
+            )
+
+        try:
+            module = importlib.import_module(module_name)
+            return getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            logger.error(f"Failed to get OCRAgent instance: {e}")
+            raise RuntimeError(
+                "Could not get the OCRAgent instance. Please check the OCR package and the "
+                "OCR_AGENT environment variable."
+            )
