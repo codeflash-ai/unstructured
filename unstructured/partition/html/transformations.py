@@ -15,6 +15,9 @@ from unstructured.documents.mappings import (
     ONTOLOGY_CLASS_TO_UNSTRUCTURED_ELEMENT_TYPE,
 )
 
+# Small cache to avoid repeatedly instantiating ontology classes to read allowed_tags
+_ALLOWED_TAG_CACHE: dict[Type[ontology.OntologyElement], str] = {}
+
 RECURSION_LIMIT = 50
 
 
@@ -406,22 +409,29 @@ def extract_tag_and_ontology_class_from_tag(
     """
     html_tag, element_class = None, None
 
+    # Pull class attribute once to avoid repeated lookups
+    class_attr = soup.attrs.get("class")
+    class_name = class_attr[0] if class_attr else None
+
     # Scenario 1: Valid Ontology Element
-    if soup.attrs.get("class"):
-        html_tag, element_class = (
-            soup.name,
-            HTML_TAG_AND_CSS_NAME_TO_ELEMENT_TYPE_MAP.get((soup.name, soup.attrs["class"][0])),
-        )
+    if class_attr:
+        # Preserve original behavior where html_tag is set to soup.name even if
+        # the mapping returns None.
+        html_tag = soup.name
+        element_class = HTML_TAG_AND_CSS_NAME_TO_ELEMENT_TYPE_MAP.get((soup.name, class_name))
 
     # Scenario 2: HTML tag incorrect, CSS class correct
     # Fallback to css name selector and overwrite html tag
-    if (
-        not element_class
-        and soup.attrs.get("class")
-        and soup.attrs["class"][0] in CSS_CLASS_TO_ELEMENT_TYPE_MAP
-    ):
-        element_class = CSS_CLASS_TO_ELEMENT_TYPE_MAP.get(soup.attrs["class"][0])
-        html_tag = element_class().allowed_tags[0]
+
+    # Scenario 2: HTML tag incorrect, CSS class correct
+    # Fallback to css name selector and overwrite html tag
+    if not element_class and class_attr and class_name in CSS_CLASS_TO_ELEMENT_TYPE_MAP:
+        element_class = CSS_CLASS_TO_ELEMENT_TYPE_MAP.get(class_name)
+        # Avoid instantiating element_class unless necessary by reading from class-level
+        # allowed_tags if possible; otherwise instantiate once inside helper.
+        html_tag = _first_allowed_tag_for_class(element_class)
+
+    # Scenario 3: <input> elements, handled explicitly based on their 'type' attribute
 
     # Scenario 3: <input> elements, handled explicitly based on their 'type' attribute
     if not element_class and soup.name == "input":
@@ -451,7 +461,8 @@ def extract_tag_and_ontology_class_from_tag(
 
     # Scenario 6: UncategorizedText has image and no text
     # Typically, this happens with a span or div tag with an image inside
-    if element_class == ontology.UncategorizedText and soup.find("img") and not soup.text.strip():
+    # Check text first to avoid expensive soup.find on elements that contain text.
+    if element_class == ontology.UncategorizedText and not soup.text.strip() and soup.find("img"):
         element_class = ontology.Image
 
     return html_tag, element_class
@@ -478,3 +489,25 @@ def get_escaped_attributes(soup: Tag) -> dict[str, str | list[str]]:
                 escaped_value = html.escape(value)
         escaped_attrs[escaped_key] = escaped_value
     return escaped_attrs
+
+
+def _first_allowed_tag_for_class(cls: Type[ontology.OntologyElement]) -> str:
+    """
+    Return the first allowed tag string for the provided ontology element class.
+    Cache the result to avoid repeated instantiation of the class when allowed_tags
+    is available as a class attribute. If the class does not expose allowed_tags
+    at the class level, instantiate once to retrieve it and cache that value.
+    """
+    tag = _ALLOWED_TAG_CACHE.get(cls)
+    if tag is not None:
+        return tag
+
+    allowed_tags = getattr(cls, "allowed_tags", None)
+    if allowed_tags:
+        tag = allowed_tags[0]
+    else:
+        # Fall back to instantiating once (preserve original behavior if allowed_tags
+        # are only available on instances).
+        tag = cls().allowed_tags[0]
+    _ALLOWED_TAG_CACHE[cls] = tag
+    return tag
