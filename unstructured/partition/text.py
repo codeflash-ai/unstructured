@@ -175,7 +175,11 @@ def _get_height_percentage(
     coordinates: tuple[tuple[float, float], ...],
     coordinate_system: CoordinateSystem,
 ) -> float:
-    avg_y = sum(coordinate[1] for coordinate in coordinates) / len(coordinates)
+    avg_y = 0.0
+    n = len(coordinates)
+    for coordinate in coordinates:
+        avg_y += coordinate[1]
+    avg_y = avg_y / n
     return avg_y / coordinate_system.height
 
 
