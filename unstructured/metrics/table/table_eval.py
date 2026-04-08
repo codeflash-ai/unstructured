@@ -68,16 +68,24 @@ def table_level_acc(predicted_table_data, ground_truth_table_data, matched_indic
     """
     score = np.zeros((len(matched_indices),))
     ground_truth_text = TableAlignment.get_content_in_tables(ground_truth_table_data)
-    for idx, predicted in enumerate(predicted_table_data):
+    predicted_texts = TableAlignment.get_content_in_tables(predicted_table_data)
+
+    for idx, predicted_text in enumerate(predicted_texts):
         matched_idx = matched_indices[idx]
         if matched_idx == -1:
             # false positive; default score 0
             continue
-        score[idx] = difflib.SequenceMatcher(
-            None,
-            TableAlignment.get_content_in_tables([predicted])[0],
-            ground_truth_text[matched_idx],
-        ).ratio()
+
+        gt_text = ground_truth_text[matched_idx]
+
+        if predicted_text == gt_text:
+            score[idx] = 1.0
+            continue
+
+        if not predicted_text or not gt_text:
+            continue
+
+        score[idx] = difflib.SequenceMatcher(None, predicted_text, gt_text).ratio()
     return score
 
 
