@@ -4,6 +4,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Generator, List, Optional, TypeVar, Union
@@ -118,8 +119,15 @@ def _get_optimal_value_for_bbox(
     Returns:
         The optimal value for the given bounding box and parameters given.
     """
-    bbox_to_page_ratio = _get_bbox_to_page_ratio(bbox, page_size)
-    slope, intercept = _linear_polyfit_2point(
+    x1, y1, x2, y2 = bbox
+    page_width, page_height = page_size
+    bbox_width = x2 - x1
+    bbox_height = y2 - y1
+    bbox_diagonal = math.hypot(bbox_height, bbox_width)
+    page_diagonal = math.hypot(page_height, page_width)
+    bbox_to_page_ratio = bbox_diagonal / page_diagonal
+
+    slope, intercept = _compute_slope_intercept_cached(
         ratio_for_min_value, ratio_for_max_value, min_value, max_value
     )
     value = int(bbox_to_page_ratio * slope + intercept)
@@ -396,6 +404,19 @@ def _linear_polyfit_2point(x0: float, x1: float, y0: float, y1: float):
     else:
         slope = (y1 - y0) / (x1 - x0)
         intercept = y0 - slope * x0
+    return slope, intercept
+
+
+@lru_cache(maxsize=128)
+def _compute_slope_intercept_cached(
+    ratio_for_min_value: float, ratio_for_max_value: float, min_value: int, max_value: int
+) -> tuple[float, float]:
+    if ratio_for_max_value == ratio_for_min_value:
+        slope = 0.0
+        intercept = (min_value + max_value) / 2.0
+    else:
+        slope = (max_value - min_value) / (ratio_for_max_value - ratio_for_min_value)
+        intercept = min_value - slope * ratio_for_min_value
     return slope, intercept
 
 
