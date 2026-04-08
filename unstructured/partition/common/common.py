@@ -30,6 +30,27 @@ if TYPE_CHECKING:
     from unstructured_inference.inference.layout import PageLayout
     from unstructured_inference.inference.layoutelement import LayoutElement
 
+_EMOJI_RANGES = (
+    (0x1F300, 0x1F5FF),  # Misc Symbols and Pictographs
+    (0x1F600, 0x1F64F),  # Emoticons
+    (0x1F680, 0x1F6FF),  # Transport & Map Symbols
+    (0x1F700, 0x1F77F),  # Alchemical Symbols (some emoji-like)
+    (0x1F780, 0x1F7FF),  # Geometric Shapes Extended
+    (0x1F800, 0x1F8FF),  # Supplemental Arrows-C (emoji additions)
+    (0x1F900, 0x1F9FF),  # Supplemental Symbols and Pictographs
+    (0x1FA00, 0x1FA6F),  # Chess Symbols, Symbols and Pictographs Extended-A
+    (0x1FA70, 0x1FAFF),  # Symbols and Pictographs Extended-A
+    (0x2600, 0x26FF),  # Misc symbols
+    (0x2700, 0x27BF),  # Dingbats
+    (0x1F1E6, 0x1F1FF),  # Regional indicator symbols (flags)
+)
+
+_EMOJI_CODEPOINTS = {
+    0xFE0F,  # Variation Selector-16 (emoji presentation selector)
+    0x200D,  # Zero Width Joiner (used in multi-codepoint emoji)
+    0x20E3,  # Combining Enclosing Keycap
+}
+
 
 def normalize_layout_element(
     layout_element: LayoutElement | Element | dict[str, Any],
@@ -403,6 +424,28 @@ def contains_emoji(s: str) -> bool:
     - bool: True if the string contains any emoji, False otherwise.
     """
 
+    # Preserve behavior for non-str inputs exactly as original: delegate to emoji.emoji_count
+    if not isinstance(s, str):
+        return bool(emoji.emoji_count(s))
+
+    # Fast negative checks: empty or strictly ASCII strings cannot contain emoji
+    if not s:
+        return False
+    if s.isascii():
+        return False
+
+    # Fast scan through characters checking common emoji ranges and special code points.
+    # This avoids the heavier emoji.emoji_count for the common cases.
+    for ch in s:
+        cp = ord(ch)
+        if cp in _EMOJI_CODEPOINTS:
+            return True
+        # Check ranges
+        for start, end in _EMOJI_RANGES:
+            if start <= cp <= end:
+                return True
+
+    # Fallback to the authoritative library for any remaining, rare/complex cases.
     return bool(emoji.emoji_count(s))
 
 
