@@ -89,10 +89,11 @@ def _get_bbox_to_page_ratio(bbox: tuple[int, int, int, int], page_size: tuple[in
     """
     x1, y1, x2, y2 = bbox
     page_width, page_height = page_size
-    page_diagonal = math.sqrt(page_height**2 + page_width**2)
+    # use explicit multiplications instead of **2 to avoid pow overhead
+    page_diagonal = math.sqrt(page_height * page_height + page_width * page_width)
     bbox_width = x2 - x1
     bbox_height = y2 - y1
-    bbox_diagonal = math.sqrt(bbox_height**2 + bbox_width**2)
+    bbox_diagonal = math.sqrt(bbox_height * bbox_height + bbox_width * bbox_width)
     return bbox_diagonal / page_diagonal
 
 
