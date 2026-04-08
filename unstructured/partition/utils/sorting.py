@@ -65,16 +65,26 @@ def coord_has_valid_points(coordinates: CoordinatesMetadata) -> bool:
     """
     if not coordinates:
         return False
-    if len(coordinates.points) != 4:
+
+    points = coordinates.points
+    if len(points) != 4:
         return False
-    for point in coordinates.points:
+
+    # Keep len(...) checks outside of try/except so any TypeError from len()
+    # preserves the original behavior (was uncaught in the original implementation).
+    for point in points:
         if len(point) != 2:
             return False
-        try:
-            if point[0] < 0 or point[1] < 0:
+
+    # Group numeric comparisons under a single try/except to avoid per-iteration
+    # try overhead while preserving the original behavior of returning False on TypeError.
+    try:
+        for x, y in points:
+            if x < 0 or y < 0:
                 return False
-        except TypeError:
-            return False
+    except TypeError:
+        return False
+
     return True
 
 
