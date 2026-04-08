@@ -265,8 +265,11 @@ def _elements_to_html_tags(
         TYPE_TO_HTML_MAP.get(element.category, ElementHtml)(element) for element in elements
     ]
     elements_html = _elements_to_html_tags_by_parent(elements_html)
+    soup = BeautifulSoup("", HTML_PARSER)
     return [
-        element_html.get_html_element(exclude_binary_image_data=exclude_binary_image_data)
+        element_html.get_html_element(
+            _soup=soup, exclude_binary_image_data=exclude_binary_image_data
+        )
         for element_html in elements_html
     ]
 
