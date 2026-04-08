@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
@@ -57,12 +58,19 @@ def build_layout_elements_from_ocr_regions(
         for text_section in text_sections:
             regions = []
             words = text_section.replace("\n", " ").split()
+            if not words:
+                continue
+            word_counts = Counter(words)
+            word_set = set(word_counts.keys())
             for i, text in enumerate(ocr_regions.texts[mask]):
-                if not words:
+                if not word_counts:
                     break
-                if text in words:
+                if text in word_set:
                     regions.append(indices[mask][i])
-                    words.remove(text)
+                    word_counts[text] -= 1
+                    if word_counts[text] == 0:
+                        del word_counts[text]
+                        word_set.remove(text)
 
             if not regions:
                 continue
@@ -70,7 +78,11 @@ def build_layout_elements_from_ocr_regions(
             mask[regions] = False
             grouped_regions.append(ocr_regions.slice(regions))
     else:
-        grouped_regions = partition_groups_from_regions(ocr_regions)
+        if len(ocr_regions) <= 1:
+            if len(ocr_regions) == 1:
+                grouped_regions = [ocr_regions]
+        else:
+            grouped_regions = partition_groups_from_regions(ocr_regions)
 
     merged_regions = TextRegions.from_list([merge_text_regions(group) for group in grouped_regions])
     return LayoutElements(
