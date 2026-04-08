@@ -50,8 +50,9 @@ class TableAlignment:
 
     @staticmethod
     def _zip_to_dataframe(table_data: List[Dict[str, Any]]) -> pd.DataFrame:
-        df = pd.DataFrame(table_data, columns=["row_index", "col_index", "content"])
-        df = df.set_index("row_index")
+        df = pd.DataFrame.from_records(
+            table_data, columns=["row_index", "col_index", "content"], index="row_index"
+        )
         df["col_index"] = df["col_index"].astype(str)
         return df
 
