@@ -67,16 +67,24 @@ def stage_csv_for_prodigy(
     """
     validated_metadata: Iterable[Dict[str, str]] = _validate_prodigy_metadata(elements, metadata)
 
+    # Normalize metadata keys to lowercase once to avoid repeated key.lower() calls
+    # during fieldname computation and row generation.
+    # Convert to a list to allow multiple passes (validated_metadata is typed as Iterable).
+    validated_metadata = [  # type: ignore[assignment]
+        {key.lower(): value for key, value in metadatum.items()} for metadatum in validated_metadata
+    ]
+
     csv_fieldnames = ["text", "id"]
-    csv_fieldnames += list(
-        set().union(
-            *((key.lower() for key in metadata_item) for metadata_item in validated_metadata),
-        ),
-    )
+    # Collect all metadata keys (already lowercased) in a single pass.
+    # Use dict.fromkeys() to maintain insertion order while avoiding duplicates.
+    key_dict = {}
+    for metadata_item in validated_metadata:
+        for key in metadata_item.keys():
+            key_dict[key] = None
+    csv_fieldnames += list(key_dict.keys())
 
     def _get_rows() -> Generator[Dict[str, str], None, None]:
         for element, metadatum in zip(elements, validated_metadata):
-            metadatum = {key.lower(): value for key, value in metadatum.items()}
             row_data = dict(text=element.text, **metadatum)
             if isinstance(element.id, str):
                 row_data["id"] = element.id
