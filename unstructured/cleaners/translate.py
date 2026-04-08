@@ -82,6 +82,4 @@ def _translate_text(text, model, tokenizer):
         translated = model.generate(
             **tokenizer([text], return_tensors="pt", padding=True, truncation=True),
         )
-    return [tokenizer.decode(t, max_new_tokens=512, skip_special_tokens=True) for t in translated][
-        0
-    ]
+    return tokenizer.decode(translated[0], max_new_tokens=512, skip_special_tokens=True)
