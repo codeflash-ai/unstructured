@@ -49,13 +49,9 @@ def shrink_bbox(bbox: tuple[int, int, int, int], shrink_factor) -> tuple[int, in
     left, top, right, bottom = bbox
     width = right - left
     height = bottom - top
-    new_width = width * shrink_factor
-    new_height = height * shrink_factor
-    dw = width - new_width
-    dh = height - new_height
 
-    new_right = right - dw
-    new_bottom = bottom - dh
+    new_right = left + width * shrink_factor
+    new_bottom = top + height * shrink_factor
     return int(left), int(top), int(new_right), int(new_bottom)
 
 
