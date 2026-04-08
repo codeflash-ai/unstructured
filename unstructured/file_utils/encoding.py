@@ -5,6 +5,8 @@ from charset_normalizer import detect
 from unstructured.errors import UnprocessableEntityError
 from unstructured.partition.common.common import convert_to_bytes
 
+ANNOTATED_ENCODINGS = ("iso-8859-6-i", "iso-8859-6-e", "iso-8859-8-i", "iso-8859-8-e")
+
 ENCODE_REC_THRESHOLD = 0.8
 
 # popular encodings from https://en.wikipedia.org/wiki/Popularity_of_text_encodings
@@ -42,9 +44,7 @@ def format_encoding_str(encoding: str) -> str:
     """
     formatted_encoding = encoding.lower().replace("_", "-")
 
-    # Special case for Arabic and Hebrew charsets with directional annotations
-    annotated_encodings = ["iso-8859-6-i", "iso-8859-6-e", "iso-8859-8-i", "iso-8859-8-e"]
-    if formatted_encoding in annotated_encodings:
+    if formatted_encoding in ANNOTATED_ENCODINGS:
         formatted_encoding = formatted_encoding[:-2]  # remove the annotation
 
     return formatted_encoding
