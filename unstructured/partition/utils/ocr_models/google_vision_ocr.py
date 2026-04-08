@@ -62,12 +62,17 @@ class OCRAgentGoogleVision(OCRAgent):
             build_layout_elements_from_ocr_regions,
         )
 
-        ocr_regions = self.get_layout_from_image(
-            image,
-        )
-        ocr_text = self.get_text_from_image(
-            image,
-        )
+        trace_logger.detail("Processing entire page OCR with Google Vision API...")
+        image_context = ImageContext(language_hints=[self.language]) if self.language else None
+        with BytesIO() as buffer:
+            image.save(buffer, format="PNG")
+            response = self.client.document_text_detection(
+                image=Image(content=buffer.getvalue()), image_context=image_context
+            )
+        document = response.full_text_annotation
+        assert isinstance(document, TextAnnotation)
+        ocr_regions = self._parse_regions(document)
+        ocr_text = document.text
         return build_layout_elements_from_ocr_regions(
             ocr_regions=ocr_regions,
             ocr_text=ocr_text,
