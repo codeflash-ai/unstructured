@@ -11,10 +11,8 @@ class Orientation(Enum):
 
 def convert_coordinate(old_t, old_t_max, new_t_max, t_orientation):
     """Convert a coordinate into another system along an axis using a linear transformation"""
-    return (
-        (1 - old_t / old_t_max) * (1 - t_orientation) / 2
-        + old_t / old_t_max * (1 + t_orientation) / 2
-    ) * new_t_max
+    ratio = old_t / old_t_max
+    return new_t_max * ((1 - t_orientation) / 2 + ratio * t_orientation)
 
 
 class CoordinateSystem:
