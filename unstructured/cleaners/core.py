@@ -45,7 +45,7 @@ def clean_bullets(text: str) -> str:
     if search is None:
         return text
 
-    cleaned_text = UNICODE_BULLETS_RE.sub("", text, 1)
+    cleaned_text = text[search.end() :]
     return cleaned_text.strip()
 
 
