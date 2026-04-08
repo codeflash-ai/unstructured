@@ -38,6 +38,8 @@ from unstructured.metrics.utils import (
     _write_to_file,
 )
 
+_EXECUTOR_CLASS = concurrent.futures.ProcessPoolExecutor
+
 logger = logging.getLogger("unstructured.eval")
 handler = logging.StreamHandler()
 handler.name = "eval_log_handler"
@@ -168,7 +170,7 @@ class BaseMetricsCalculator(ABC):
     def _get_executor_class(
         cls,
     ) -> type[concurrent.futures.ThreadPoolExecutor] | type[concurrent.futures.ProcessPoolExecutor]:
-        return concurrent.futures.ProcessPoolExecutor
+        return _EXECUTOR_CLASS
 
     def _process_all_documents(
         self, executor: concurrent.futures.Executor, visualize_progress: bool
