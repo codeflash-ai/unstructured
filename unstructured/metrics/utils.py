@@ -81,18 +81,25 @@ def _display(df):
     if len(df) == 0:
         return
     headers = df.columns.tolist()
+    # Collect column values and their string representations once to avoid repeated str() calls
+    col_values = [df[header].tolist() for header in headers]
+    col_strs = [[str(item) for item in col] for col in col_values]
     col_widths = [
-        max(len(header), max(len(str(item)) for item in df[header])) for header in headers
+        max(len(headers[i]), max(len(s) for s in col_strs[i])) for i in range(len(headers))
     ]
-    click.echo(" ".join(header.ljust(col_widths[i]) for i, header in enumerate(headers)))
+    click.echo(" ".join(headers[i].ljust(col_widths[i]) for i in range(len(headers))))
     click.echo("-" * sum(col_widths) + "-" * (len(headers) - 1))
-    for _, row in df.iterrows():
+    # Iterate by row index to avoid creating Series objects for every row (faster than iterrows)
+    nrows = len(col_values[0]) if col_values else 0
+    ncols = len(headers)
+    for row_idx in range(nrows):
         formatted_row = []
-        for item in row:
+        for j in range(ncols):
+            item = col_values[j][row_idx]
             if isinstance(item, float):
                 formatted_row.append(f"{item:.3f}")
             else:
-                formatted_row.append(str(item))
+                formatted_row.append(col_strs[j][row_idx])
         click.echo(
             " ".join(formatted_row[i].ljust(col_widths[i]) for i in range(len(formatted_row))),
         )
