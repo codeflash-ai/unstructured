@@ -4,6 +4,7 @@ import quopri
 import re
 import sys
 import unicodedata
+from functools import lru_cache
 from typing import Optional, Tuple
 
 import numpy as np
@@ -314,11 +315,13 @@ def remove_punctuation(s: str) -> str:
 
 
 def remove_sentence_punctuation(s: str, exclude_punctuation: Optional[list]) -> str:
-    tbl_new = tbl.copy()
-    if exclude_punctuation:
-        for punct in exclude_punctuation:
-            del tbl_new[ord(punct)]
-    s = s.translate(tbl_new)
+    if not exclude_punctuation:
+        # No exclusions: use the precomputed table directly (translate won't mutate it).
+        return s.translate(tbl)
+    # Preserve order and duplicates from the original list (duplicates should cause KeyError).
+    ex_tuple = tuple(exclude_punctuation)
+    mapping = _mapping_for_exclude(ex_tuple)
+    s = s.translate(mapping)
     return s
 
 
@@ -488,3 +491,14 @@ def clean_extra_whitespace_with_index_run(text: str) -> Tuple[str, np.ndarray]:
 
 def index_adjustment_after_clean_extra_whitespace(index, moved_indices) -> int:
     return int(index - moved_indices[index])
+
+
+@lru_cache(maxsize=128)
+def _mapping_for_exclude(ex_tuple: tuple) -> dict:
+    # Build and return a mapping derived from tbl with the specified exclusions.
+    # Preserve original behavior: deleting a key that does not exist must raise KeyError,
+    # and ord() on an invalid punct must raise TypeError.
+    tbl_new = tbl.copy()
+    for punct in ex_tuple:
+        del tbl_new[ord(punct)]
+    return tbl_new
