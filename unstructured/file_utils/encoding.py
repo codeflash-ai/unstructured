@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import IO, Optional, Tuple, Union
 
 from charset_normalizer import detect
@@ -32,6 +33,7 @@ COMMON_ENCODINGS = [
 ]
 
 
+@lru_cache(maxsize=128)
 def format_encoding_str(encoding: str) -> str:
     """Format input encoding string (e.g., `utf-8`, `iso-8859-1`, etc).
     Parameters
