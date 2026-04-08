@@ -116,7 +116,7 @@ class MixedbreadAIEmbeddingEncoder(BaseEmbeddingEncoder):
         batch_size = BATCH_SIZE
         batch_itr = range(0, len(texts), batch_size)
 
-        responses = []
+        embeddings_out: List[List[float]] = []
         client = self.config.get_client()
         for i in batch_itr:
             batch = texts[i : i + batch_size]
@@ -128,8 +128,10 @@ class MixedbreadAIEmbeddingEncoder(BaseEmbeddingEncoder):
                 request_options=self._request_options,
                 input=batch,
             )
-            responses.append(response)
-        return [item.embedding for response in responses for item in response.data]
+            # Extract embeddings immediately to avoid storing full response objects
+            for item in response.data:
+                embeddings_out.append(item.embedding)
+        return embeddings_out
 
     @staticmethod
     def _add_embeddings_to_elements(
@@ -146,10 +148,9 @@ class MixedbreadAIEmbeddingEncoder(BaseEmbeddingEncoder):
             List[Element]: Elements with embeddings added.
         """
         assert len(elements) == len(embeddings)
-        elements_w_embedding = []
-        for i, element in enumerate(elements):
-            element.embeddings = embeddings[i]
-            elements_w_embedding.append(element)
+        # Assign embeddings directly to each element; no need to create a new list
+        for element, embedding in zip(elements, embeddings):
+            element.embeddings = embedding
         return elements
 
     def embed_documents(self, elements: List[Element]) -> List[Element]:
@@ -162,7 +163,7 @@ class MixedbreadAIEmbeddingEncoder(BaseEmbeddingEncoder):
         Returns:
             List[Element]: Elements with embeddings.
         """
-        embeddings = self._embed([str(e) for e in elements])
+        embeddings = self._embed(list(map(str, elements)))
         return self._add_embeddings_to_elements(elements, embeddings)
 
     def embed_query(self, query: str) -> List[float]:
