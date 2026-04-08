@@ -16,7 +16,6 @@ TODO (Pluto): OntologyElement is the only needed class. It could contains data a
 from __future__ import annotations
 
 import uuid
-from copy import copy
 from enum import Enum
 from typing import Any, List, Optional
 
@@ -75,18 +74,24 @@ class OntologyElement(BaseModel):
         return str(uuid.uuid4()).replace("-", "")
 
     def to_html(self, add_children: bool = True) -> str:
-        additional_attrs = copy(self.additional_attributes)
-        additional_attrs.pop("class", None)
-        additional_attrs.pop("id", None)
+        # Build attribute string directly without copying the dict
+        attr_parts = []
 
-        attr_str = self._construct_attribute_string(additional_attrs)
-        class_attr = f'class="{self.css_class_name}"' if self.css_class_name else ""
+        if self.css_class_name:
+            attr_parts.append(f'class="{self.css_class_name}"')
 
-        combined_attr_str = f"{class_attr} {attr_str}".strip()
+        for key, value in self.additional_attributes.items():
+            if key not in ("class", "id"):
+                if value:
+                    attr_parts.append(f'{key}="{value}"')
+                else:
+                    attr_parts.append(key)
+
+        attr_str = " ".join(attr_parts)
 
         children_html = self._generate_children_html(add_children)
 
-        result_html = self._generate_final_html(combined_attr_str, children_html)
+        result_html = self._generate_final_html(attr_str, children_html)
 
         return result_html
 
@@ -126,7 +131,10 @@ class OntologyElement(BaseModel):
         text = self.text or ""
 
         if text or children_html:
-            inside_tag_text = f"{text} {children_html}".strip()
+            if text and children_html:
+                inside_tag_text = f"{text} {children_html}"
+            else:
+                inside_tag_text = text or children_html
             return f"<{self.html_tag_name} {attr_str}>{inside_tag_text}</{self.html_tag_name}>"
         else:
             return f"<{self.html_tag_name} {attr_str} />"
