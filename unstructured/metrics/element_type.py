@@ -54,40 +54,60 @@ def calculate_element_type_percent_match(
     if len(output) == 0 or len(source) == 0:
         return 0.0
 
-    output_copy = output.copy()
-    source_copy = source.copy()
-    total_source_element_count = 0
-    total_match_element_count = 0
+    # Use the total of source values directly (equivalent to the original accumulation logic)
+    total_source_element_count = sum(source.values())
+    total_match_element_count = 0.0
 
     unmatched_depth_output: dict[str, int] = {}
     unmatched_depth_source: dict[str, int] = {}
 
-    # loop through the output list to find match with source
-    for k, _ in output_copy.items():
-        if k in source_copy:
-            match_count = min(output_copy[k], source_copy[k])
+    # Iterate output to compute exact matches and collect leftovers for both output and source
+    for k, out_count in output.items():
+        src_count = source.get(k, 0)
+        if src_count:
+            match_count = out_count if out_count <= src_count else src_count
             total_match_element_count += match_count
-            total_source_element_count += match_count
 
-            # update the dictionary by removing already matched values
-            output_copy[k] -= match_count
-            source_copy[k] -= match_count
+            leftover_output = out_count - match_count
+            if leftover_output:
+                element_type = k[0]
+                if element_type not in unmatched_depth_output:
+                    unmatched_depth_output[element_type] = leftover_output
+                else:
+                    unmatched_depth_output[element_type] += leftover_output
+
+            leftover_source = src_count - match_count
+            if leftover_source:
+                element_type = k[0]
+                if element_type not in unmatched_depth_source:
+                    unmatched_depth_source[element_type] = leftover_source
+                else:
+                    unmatched_depth_source[element_type] += leftover_source
+        else:
+            # Key not present in source: all output counts are unmatched by depth
+            element_type = k[0]
+            if element_type not in unmatched_depth_output:
+                unmatched_depth_output[element_type] = out_count
+            else:
+                unmatched_depth_output[element_type] += out_count
+
+    # Add source-only keys (those not present in output) to unmatched_depth_source
+    for k, src_count in source.items():
+        if k in output:
+            continue
 
         # add unmatched leftovers from output_copy to a new dictionary
         element_type = k[0]
-        if element_type not in unmatched_depth_output:
-            unmatched_depth_output[element_type] = output_copy[k]
+        if element_type not in unmatched_depth_source:
+            unmatched_depth_source[element_type] = src_count
         else:
-            unmatched_depth_output[element_type] += output_copy[k]
+            unmatched_depth_source[element_type] += src_count
 
-    # add unmatched leftovers from source_copy to a new dictionary
-    unmatched_depth_source = _convert_to_frequency_without_depth(source_copy)
-
-    # loop through the source list to match any existing partial match left
-    for k, _ in unmatched_depth_source.items():
-        total_source_element_count += unmatched_depth_source[k]
-        if k in unmatched_depth_output:
-            match_count = min(unmatched_depth_output[k], unmatched_depth_source[k])
+    # Match any partially matched elements by type and apply the depth weight
+    for element_type, src_count in unmatched_depth_source.items():
+        out_count = unmatched_depth_output.get(element_type)
+        if out_count:
+            match_count = out_count if out_count <= src_count else src_count
             total_match_element_count += match_count * category_depth_weight
 
     return min(max(total_match_element_count / total_source_element_count, 0.0), 1.0)
