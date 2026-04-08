@@ -702,10 +702,24 @@ class ObjectDetectionMetricsCalculatorBase(BaseMetricsCalculator, ABC):
         To compare to `file_stem` we need to take the prefix part of the file, thus double-stem
         is applied.
         """
-        for path in self._ground_truth_paths:
-            if Path(path.stem).stem == file_stem:
-                return path
-        return None
+        # Build or refresh a cache mapping the "double-stem" to the original Path.
+        # We intentionally keep the first occurrence to preserve original behavior.
+        snapshot = tuple(self._ground_truth_paths)
+        if getattr(self, "_ground_truth_paths_snapshot", None) != snapshot or not hasattr(
+            self, "_ground_truth_stem_map"
+        ):
+            gt_map: dict[str, Path] = {}
+            for path in self._ground_truth_paths:
+                # original behavior used Path(path.stem).stem to strip the last suffix;
+                # replicate that without creating intermediate Path objects.
+                inner = path.stem  # e.g. "some_document.pdf"
+                double_stem = inner.rsplit(".", 1)[0]  # e.g. "some_document"
+                if double_stem not in gt_map:
+                    gt_map[double_stem] = path
+            self._ground_truth_stem_map = gt_map
+            self._ground_truth_paths_snapshot = snapshot
+
+        return self._ground_truth_stem_map.get(file_stem)
 
     def _get_paths(self, doc: Path) -> tuple(str, Path, Path):
         """Resolves ground doctype, prediction file path and ground truth path.
@@ -734,7 +748,8 @@ class ObjectDetectionMetricsCalculatorBase(BaseMetricsCalculator, ABC):
         Returns:
             tuple: doctype, prediction file path, ground truth path
         """
-        od_dump_path = Path(doc)
+        # Avoid unnecessary Path construction if doc is already a Path
+        od_dump_path = doc if isinstance(doc, Path) else Path(doc)
         file_stem = od_dump_path.parts[-3]  # we take the `document_name` - so the filename stem
 
         src_gt_filename = self._find_file_in_ground_truth(file_stem)
@@ -742,7 +757,9 @@ class ObjectDetectionMetricsCalculatorBase(BaseMetricsCalculator, ABC):
         if src_gt_filename not in self._ground_truth_paths:
             raise ValueError(f"Ground truth file {src_gt_filename} not found in list of GT files")
 
-        doctype = Path(src_gt_filename.stem).suffix[1:]
+        # Determine doctype without creating an intermediate Path object
+        stem = src_gt_filename.stem
+        doctype = stem.rsplit(".", 1)[1] if "." in stem else ""
 
         prediction_file = self.documents_dir / doc
         if not prediction_file.exists():
