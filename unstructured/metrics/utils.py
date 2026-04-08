@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import re
 import statistics
@@ -214,12 +215,30 @@ def _pstdev(scores: List[Optional[float]], rounding: Optional[int] = 3) -> Union
     Args:
         rounding (int): optional argument that allows user to define decimal points. Default at 3.
     """
-    scores = [score for score in scores if score is not None]
-    if len(scores) <= 1:
+    # Single-pass Welford algorithm to compute population variance without allocating a new list.
+    n = 0
+    mean = 0  # keeps the running mean in the same numeric type as inputs when possible
+    M2 = 0  # running sum of squares of differences from current mean
+
+    for score in scores:
+        if score is None:
+            continue
+        # Maintain behavior: let operations raise the same exceptions for invalid types
+        n += 1
+        delta = score - mean
+        mean += delta / n
+        M2 += delta * (score - mean)
+
+    if n <= 1:
         return None
+
+    variance = M2 / n
+    # Protect against tiny negative variance from floating-point error
+    std = math.sqrt(float(variance) if variance >= 0 else 0.0)
+
     if not rounding:
-        return statistics.pstdev(scores)
-    return round(statistics.pstdev(scores), rounding)
+        return std
+    return round(std, rounding)
 
 
 def _count(scores: List[Optional[float]]) -> float:
