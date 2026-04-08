@@ -47,7 +47,10 @@ class ElementHtml(ABC):
         element_html.string = self.element.text
 
     def get_text_as_html(self) -> Union[Tag, None]:
-        element_html = BeautifulSoup(self.element.metadata.text_as_html or "", HTML_PARSER).find()
+        text_as_html = self.element.metadata.text_as_html
+        if not text_as_html:
+            return None
+        element_html = BeautifulSoup(text_as_html, HTML_PARSER).find()
         if not isinstance(element_html, Tag):
             return None
         return element_html
