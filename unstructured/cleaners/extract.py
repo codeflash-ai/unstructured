@@ -12,6 +12,8 @@ from unstructured.nlp.patterns import (
     US_PHONE_NUMBERS_RE,
 )
 
+_EMAIL_ADDRESS_RE = re.compile(EMAIL_ADDRESS_PATTERN)
+
 
 def _get_indexed_match(text: str, pattern: str, index: int = 0) -> re.Match:
     if not isinstance(index, int) or index < 0:
@@ -59,7 +61,7 @@ def extract_text_after(text: str, pattern: str, index: int = 0, strip: bool = Tr
 
 
 def extract_email_address(text: str) -> List[str]:
-    return re.findall(EMAIL_ADDRESS_PATTERN, text.lower())
+    return _EMAIL_ADDRESS_RE.findall(text.lower())
 
 
 def extract_ip_address(text: str) -> List[str]:
