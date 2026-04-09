@@ -423,9 +423,9 @@ class TextExtractionMetricsCalculator(BaseMetricsCalculator):
 
     def _get_ccts(self, doc: Path) -> tuple[str, str]:
         output_cct = _prepare_output_cct(
-            docpath=self.documents_dir / doc, output_type=self.document_type
+            docpath=str(self.documents_dir / doc), output_type=self.document_type
         )
-        source_cct = _read_text_file(self.ground_truths_dir / doc.with_suffix(".txt"))
+        source_cct = _read_text_file(str(self.ground_truths_dir / doc.with_suffix(".txt")))
 
         return output_cct, source_cct
 

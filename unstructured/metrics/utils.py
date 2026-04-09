@@ -19,10 +19,12 @@ def _prepare_output_cct(docpath: str, output_type: str) -> str:
     from `json` or `txt` file.
     """
     try:
+        # Normalize docpath to a string once to avoid repeated Path->str conversions
+        docpath_str = str(docpath)
         if output_type == "json":
-            output_cct = elements_to_text(elements_from_json(docpath))
+            output_cct = elements_to_text(elements_from_json(docpath_str))
         elif output_type == "txt":
-            output_cct = _read_text_file(docpath)
+            output_cct = _read_text_file(docpath_str)
         else:
             raise ValueError(
                 f"File type not supported. Expects one of `json` or `txt`, \
@@ -233,14 +235,13 @@ def _read_text_file(path):
     """
     Reads the contents of a text file and returns it as a string.
     """
-    # Check if the file exists
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"The file at {path} does not exist.")
 
     try:
         with open(path, errors="ignore") as f:
-            text = f.read()
-        return text
+            return f.read()
+    except FileNotFoundError:
+        # Preserve the original, specific error message when the file does not exist.
+        raise FileNotFoundError(f"The file at {path} does not exist.")
     except OSError as e:
         # Handle other I/O related errors
         raise IOError(f"An error occurred when reading the file at {path}: {e}")
