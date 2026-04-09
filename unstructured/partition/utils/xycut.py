@@ -216,10 +216,19 @@ def points_to_bbox(points):
     assert len(points) == 8
 
     # [x1,y1,x2,y2,x3,y3,x4,y4]
-    left = min(points[::2])
-    right = max(points[::2])
-    top = min(points[1::2])
-    bottom = max(points[1::2])
+    x0 = points[0]
+    y0 = points[1]
+    x1 = points[2]
+    y1 = points[3]
+    x2 = points[4]
+    y2 = points[5]
+    x3 = points[6]
+    y3 = points[7]
+
+    left = min(x0, x1, x2, x3)
+    right = max(x0, x1, x2, x3)
+    top = min(y0, y1, y2, y3)
+    bottom = max(y0, y1, y2, y3)
 
     left = max(left, 0)
     top = max(top, 0)
@@ -237,39 +246,40 @@ def bbox2points(bbox):
 def vis_polygon(img, points, thickness=2, color=None):
     import cv2
 
-    br2bl_color = color
-    tl2tr_color = color
-    tr2br_color = color
-    bl2tl_color = color
+    p0 = points[0]
+    p1 = points[1]
+    p2 = points[2]
+    p3 = points[3]
+
     cv2.line(
         img,
-        (points[0][0], points[0][1]),
-        (points[1][0], points[1][1]),
-        color=tl2tr_color,
+        (p0[0], p0[1]),
+        (p1[0], p1[1]),
+        color=color,
         thickness=thickness,
     )
 
     cv2.line(
         img,
-        (points[1][0], points[1][1]),
-        (points[2][0], points[2][1]),
-        color=tr2br_color,
+        (p1[0], p1[1]),
+        (p2[0], p2[1]),
+        color=color,
         thickness=thickness,
     )
 
     cv2.line(
         img,
-        (points[2][0], points[2][1]),
-        (points[3][0], points[3][1]),
-        color=br2bl_color,
+        (p2[0], p2[1]),
+        (p3[0], p3[1]),
+        color=color,
         thickness=thickness,
     )
 
     cv2.line(
         img,
-        (points[3][0], points[3][1]),
-        (points[0][0], points[0][1]),
-        color=bl2tl_color,
+        (p3[0], p3[1]),
+        (p0[0], p0[1]),
+        color=color,
         thickness=thickness,
     )
     return img
@@ -295,8 +305,10 @@ def vis_points(
     """
     import cv2
 
-    points = np.array(points)
+    points = np.asarray(points)
     assert len(texts) == points.shape[0]
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
 
     for i, _points in enumerate(points):
         vis_polygon(img, _points.reshape(-1, 2), thickness=2, color=color)
@@ -306,7 +318,6 @@ def vis_points(
         cy = (top + bottom) // 2
 
         txt = texts[i]
-        font = cv2.FONT_HERSHEY_SIMPLEX
         cat_size = cv2.getTextSize(txt, font, 0.5, 2)[0]
 
         img = cv2.rectangle(
