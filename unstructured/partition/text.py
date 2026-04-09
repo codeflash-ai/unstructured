@@ -181,7 +181,9 @@ def _get_height_percentage(
 
 def _is_empty_bullet(text: str) -> bool:
     """Checks if input text is an empty bullet."""
-    return bool(UNICODE_BULLETS_RE.match(text) and len(text) == 1)
+    if len(text) != 1:
+        return False
+    return UNICODE_BULLETS_RE.match(text) is not None
 
 
 def _is_in_footer_position(
