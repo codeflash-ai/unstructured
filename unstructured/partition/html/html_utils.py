@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from bs4 import BeautifulSoup
 
 
@@ -20,6 +22,13 @@ def indent_html(html_string: str, html_parser="html.parser") -> str:
     Returns:
         str: The formatted and indented HTML content.
     """
+    # Use a small LRU cache to avoid reparsing identical inputs repeatedly.
+    pretty_html = _cached_prettify(html_string, html_parser)
+    return pretty_html
+
+
+@lru_cache(maxsize=128)
+def _cached_prettify(html_string: str, html_parser: str) -> str:
     soup = BeautifulSoup(html_string, html_parser)
     pretty_html = soup.prettify()
     return pretty_html
