@@ -15,6 +15,13 @@ from unstructured.documents.mappings import (
     ONTOLOGY_CLASS_TO_UNSTRUCTURED_ELEMENT_TYPE,
 )
 
+_INLINE_CLASSES = (ontology.Hyperlink,)
+
+_INLINE_CATEGORIES = {
+    ontology.ElementTypeEnum.specialized_text,
+    ontology.ElementTypeEnum.annotation,
+}
+
 RECURSION_LIMIT = 50
 
 
@@ -207,16 +214,14 @@ def is_text_element(ontology_element: ontology.OntologyElement) -> bool:
 def is_inline_element(ontology_element: ontology.OntologyElement) -> bool:
     """Categories or classes that we want to combine with text elements"""
 
-    inline_classes = [ontology.Hyperlink]
-    inline_categories = [
-        ontology.ElementTypeEnum.specialized_text,
-        ontology.ElementTypeEnum.annotation,
-    ]
+    # Keep the same local variable names for readability; bind to module-level constants.
+    inline_classes = _INLINE_CLASSES
+    inline_categories = _INLINE_CATEGORIES
 
-    if any(isinstance(ontology_element, class_) for class_ in inline_classes):
+    if isinstance(ontology_element, inline_classes):
         return True
 
-    return any(ontology_element.elementType == category for category in inline_categories)
+    return ontology_element.elementType in inline_categories
 
 
 def unstructured_elements_to_ontology(
