@@ -298,35 +298,75 @@ def vis_points(
     points = np.array(points)
     assert len(texts) == points.shape[0]
 
-    for i, _points in enumerate(points):
-        vis_polygon(img, _points.reshape(-1, 2), thickness=2, color=color)
-        bbox = points_to_bbox(_points)
-        left, top, right, bottom = bbox
-        cx = (left + right) // 2
-        cy = (top + bottom) // 2
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cat_sizes = [cv2.getTextSize(txt, font, 0.5, 2)[0] for txt in texts]
 
-        txt = texts[i]
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cat_size = cv2.getTextSize(txt, font, 0.5, 2)[0]
+    if points.ndim == 2 and points.shape[1] == 8:
+        pts_reshaped = points.reshape(points.shape[0], 4, 2)
+        xs = pts_reshaped[:, :, 0]
+        ys = pts_reshaped[:, :, 1]
+        lefts = np.maximum(xs.min(axis=1), 0)
+        rights = np.maximum(xs.max(axis=1), 0)
+        tops = np.maximum(ys.min(axis=1), 0)
+        bottoms = np.maximum(ys.max(axis=1), 0)
+        cxs = (lefts + rights) // 2
+        cys = (tops + bottoms) // 2
 
-        img = cv2.rectangle(
-            img,
-            (cx - 5 * len(txt), cy - cat_size[1] - 5),
-            (cx - 5 * len(txt) + cat_size[0], cy - 5),
-            color,
-            -1,
-        )
+        for i in range(points.shape[0]):
+            vis_polygon(img, pts_reshaped[i], thickness=2, color=color)
+            cx = int(cxs[i])
+            cy = int(cys[i])
 
-        img = cv2.putText(
-            img,
-            txt,
-            (cx - 5 * len(txt), cy - 5),
-            font,
-            0.5,
-            (255, 255, 255),
-            thickness=1,
-            lineType=cv2.LINE_AA,
-        )
+            txt = texts[i]
+            cat_size = cat_sizes[i]
+
+            img = cv2.rectangle(
+                img,
+                (cx - 5 * len(txt), cy - cat_size[1] - 5),
+                (cx - 5 * len(txt) + cat_size[0], cy - 5),
+                color,
+                -1,
+            )
+
+            img = cv2.putText(
+                img,
+                txt,
+                (cx - 5 * len(txt), cy - 5),
+                font,
+                0.5,
+                (255, 255, 255),
+                thickness=1,
+                lineType=cv2.LINE_AA,
+            )
+    else:
+        for i, _points in enumerate(points):
+            vis_polygon(img, _points.reshape(-1, 2), thickness=2, color=color)
+            bbox = points_to_bbox(_points)
+            left, top, right, bottom = bbox
+            cx = (left + right) // 2
+            cy = (top + bottom) // 2
+
+            txt = texts[i]
+            cat_size = cat_sizes[i]
+
+            img = cv2.rectangle(
+                img,
+                (cx - 5 * len(txt), cy - cat_size[1] - 5),
+                (cx - 5 * len(txt) + cat_size[0], cy - 5),
+                color,
+                -1,
+            )
+
+            img = cv2.putText(
+                img,
+                txt,
+                (cx - 5 * len(txt), cy - 5),
+                font,
+                0.5,
+                (255, 255, 255),
+                thickness=1,
+                lineType=cv2.LINE_AA,
+            )
 
     return img
 
