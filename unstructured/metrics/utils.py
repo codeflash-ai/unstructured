@@ -143,8 +143,11 @@ def _uniquity_file(file_list, target_filename) -> str:
     Returns a string of file name in the format of `filename (<min number>).ext`.
     """
     original_filename, extension = target_filename.rsplit(".", 1)
-    pattern = rf"^{re.escape(original_filename)}(?: \((\d+)\))?\.{re.escape(extension)}$"
-    duplicated_files = sorted([f for f in file_list if re.match(pattern, f)], key=_sorting_key)
+    pattern = re.compile(
+        rf"^{re.escape(original_filename)}(?: \((\d+)\))?\.{re.escape(extension)}$"
+    )
+    duplicated_files = [f for f in file_list if pattern.match(f)]
+    duplicated_files.sort(key=_sorting_key)
 
     numbers = []
     for file in duplicated_files:
