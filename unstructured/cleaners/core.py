@@ -432,7 +432,14 @@ def clean(
 def bytes_string_to_string(text: str, encoding: str = "utf-8"):
     """Converts a string representation of a byte string to a regular string using the
     specified encoding."""
-    text_bytes = bytes([ord(char) for char in text])
+    # Check if all characters are in the valid byte range (0-255) and handle edge cases
+    try:
+        # Fast path: try latin1 encoding first for performance
+        text_bytes = text.encode("latin1")
+    except (AttributeError, UnicodeEncodeError):
+        # Fall back to original behavior for error consistency
+        text_bytes = bytes([ord(char) for char in text])
+
     formatted_encoding = format_encoding_str(encoding)
     return text_bytes.decode(formatted_encoding)
 
