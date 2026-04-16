@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, List, Optional
 
 import numpy as np
+from numba import njit
 from pydantic import Field, SecretStr
 
 from unstructured.documents.elements import Element
@@ -100,32 +101,15 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
             return
 
         max_tokens_per_batch = self.config.get_token_limit()
-        current_batch: List[str] = []
-        current_batch_tokens = 0
 
         # Tokenize all texts in one API call
         all_token_lists = client.tokenize(texts, model=self.config.model_name)
-        token_counts = [len(tokens) for tokens in all_token_lists]
+        token_counts = np.array([len(tokens) for tokens in all_token_lists], dtype=np.int64)
+        # Compute batch boundaries using numba for performance
+        batch_indices = _fast_batch_indices(token_counts, max_tokens_per_batch)
 
-        for i, text in enumerate(texts):
-            n_tokens = token_counts[i]
-
-            # Check if adding this text would exceed limits
-            if current_batch and (
-                len(current_batch) >= MAX_BATCH_SIZE
-                or (current_batch_tokens + n_tokens > max_tokens_per_batch)
-            ):
-                # Yield the current batch and start a new one
-                yield current_batch
-                current_batch = []
-                current_batch_tokens = 0
-
-            current_batch.append(text)
-            current_batch_tokens += n_tokens
-
-        # Yield the last batch (always has at least one text)
-        if current_batch:
-            yield current_batch
+        for i in range(len(batch_indices) - 1):
+            yield texts[batch_indices[i] : batch_indices[i + 1]]
 
     def _embed_batch(
         self, batch: List[str], client: "Client", input_type: str = "document"
@@ -235,3 +219,40 @@ class VoyageAIEmbeddingEncoder(BaseEmbeddingEncoder):
             element.embeddings = embeddings[i]
             elements_w_embedding.append(element)
         return elements
+
+
+@njit(cache=True)
+def _fast_batch_indices(token_counts: np.ndarray, max_tokens_per_batch: int) -> np.ndarray:
+    """
+    Compute start indices for each batch of texts using token limits, with Numba JIT.
+
+    Args:
+        token_counts: 1-d np.ndarray with the token count for each text.
+        max_tokens_per_batch: Maximum allowed tokens in a batch.
+
+    Returns:
+        Indices (np.ndarray) of "start" positions for each batch (including 0).
+        The last index is always equal to len(token_counts).
+    """
+    n = token_counts.shape[0]
+    if n == 0:
+        return np.array([0], dtype=np.int64)
+
+    starts = np.empty(n + 1, dtype=np.int64)
+    s_idx = 0
+    starts[s_idx] = 0
+    s_idx += 1
+    batch_tokens = token_counts[0]
+    batch_size = 1
+    for i in range(1, n):
+        tc = token_counts[i]
+        if (batch_size >= MAX_BATCH_SIZE) or (batch_tokens + tc > max_tokens_per_batch):
+            starts[s_idx] = i
+            s_idx += 1
+            batch_tokens = tc
+            batch_size = 1
+        else:
+            batch_tokens += tc
+            batch_size += 1
+    starts[s_idx] = n
+    return starts[: s_idx + 1]
