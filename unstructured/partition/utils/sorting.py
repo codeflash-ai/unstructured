@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numba import njit
 
 from unstructured.documents.elements import CoordinatesMetadata, Element
 from unstructured.logger import trace_logger
@@ -194,17 +195,25 @@ def sort_bboxes_by_xy_cut(
 ):
     """Sort bounding boxes using XY-cut algorithm."""
 
-    shrunken_bboxes = []
-    for bbox in bboxes:
-        shrunken_bbox = shrink_bbox(bbox, shrink_factor)
-        shrunken_bboxes.append(shrunken_bbox)
+    bboxes_array = np.asarray(bboxes)
+
+    # Use vectorized numba implementation for numpy arrays with integer dtypes
+    if bboxes_array.ndim == 2 and bboxes_array.shape[1] == 4 and bboxes_array.dtype.kind in "iu":
+        shrunken_bboxes = _shrink_bboxes_vectorized(bboxes_array.astype(np.int64), shrink_factor)
+    else:
+        # Fallback for non-array inputs or non-integer dtypes
+        shrunken_bboxes = []
+        for bbox in bboxes:
+            shrunken_bbox = shrink_bbox(bbox, shrink_factor)
+            shrunken_bboxes.append(shrunken_bbox)
+        shrunken_bboxes = np.asarray(shrunken_bboxes).astype(int)
 
     res: list[int] = []
     xy_cut_sorting_func = (
         recursive_xy_cut_swapped if xy_cut_primary_direction == "x" else recursive_xy_cut
     )
     xy_cut_sorting_func(
-        np.asarray(shrunken_bboxes).astype(int),
+        shrunken_bboxes,
         np.arange(len(shrunken_bboxes)),
         res,
     )
@@ -266,3 +275,26 @@ def sort_text_regions(
         sorted_elements = elements
 
     return sorted_elements
+
+
+@njit(cache=True)
+def _shrink_bboxes_vectorized(bboxes: np.ndarray, shrink_factor: float) -> np.ndarray:
+    """Vectorized bbox shrinking using numba for performance."""
+    n = bboxes.shape[0]
+    shrunken_bboxes = np.empty((n, 4), dtype=np.int64)
+
+    for i in range(n):
+        left, top, right, bottom = bboxes[i, 0], bboxes[i, 1], bboxes[i, 2], bboxes[i, 3]
+        width = right - left
+        height = bottom - top
+        new_width = width * shrink_factor
+        new_height = height * shrink_factor
+        dw = width - new_width
+        dh = height - new_height
+
+        shrunken_bboxes[i, 0] = left
+        shrunken_bboxes[i, 1] = top
+        shrunken_bboxes[i, 2] = right - dw
+        shrunken_bboxes[i, 3] = bottom - dh
+
+    return shrunken_bboxes
