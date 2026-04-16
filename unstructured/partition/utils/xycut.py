@@ -212,6 +212,7 @@ def recursive_xy_cut_swapped(boxes: np.ndarray, indices: np.ndarray, res: List[i
             )
 
 
+@njit(cache=True)
 def points_to_bbox(points):
     assert len(points) == 8
 
