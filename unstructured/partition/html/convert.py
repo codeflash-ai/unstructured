@@ -54,10 +54,14 @@ class ElementHtml(ABC):
 
     def _get_children_html(self, soup: BeautifulSoup, element_html: Tag, **kwargs: Any) -> Tag:
         wrapper = soup.new_tag(name="div")
-        wrapper.append(element_html)
+        # Collect elements to append for batch append after all children are collected
+        elements_to_append = [element_html]
         for child in self.children:
             child_html = child.get_html_element(_soup=soup, **kwargs)
-            wrapper.append(child_html)
+            elements_to_append.append(child_html)
+        # Append all elements in one go if possible (bs4 does not support extend, but append is O(1), so at least "precollect")
+        for el in elements_to_append:
+            wrapper.append(el)
         return wrapper
 
     def get_html_element(self, **kwargs: Any) -> Tag:
