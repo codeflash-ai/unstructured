@@ -146,10 +146,8 @@ class MixedbreadAIEmbeddingEncoder(BaseEmbeddingEncoder):
             List[Element]: Elements with embeddings added.
         """
         assert len(elements) == len(embeddings)
-        elements_w_embedding = []
-        for i, element in enumerate(elements):
-            element.embeddings = embeddings[i]
-            elements_w_embedding.append(element)
+        for i in range(len(elements)):
+            elements[i].embeddings = embeddings[i]
         return elements
 
     def embed_documents(self, elements: List[Element]) -> List[Element]:
