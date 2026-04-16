@@ -71,6 +71,14 @@ def _format_grouping_output(*df):
     Concatenates multiple pandas DataFrame objects along the columns (side-by-side)
     and resets the index.
     """
+    if df and all(isinstance(d, pd.DataFrame) and isinstance(d.index, pd.RangeIndex) for d in df):
+        try:
+            result = pd.concat(df, axis=1)
+            result.insert(0, "index", range(len(result)))
+            return result
+        except Exception:
+            pass
+
     return pd.concat(df, axis=1).reset_index()
 
 
